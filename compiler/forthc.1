@@ -1,0 +1,438 @@
+.\" vi: set ts=2 shiftwidth=2 expandtab:
+.\"
+.\" VNPForth - Compiled native Forth for x86 Linux
+.\" Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+.\"
+.\" This program is free software; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License
+.\" as published by the Free Software Foundation; either version 2
+.\" of the License, or (at your option) any later version.
+.\"
+.\" This program is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public License
+.\" along with this program; if not, write to the Free Software
+.\" Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+.\"
+.\"
+.TH FORTHC 1 "VNPForth compiler" "VNPForth" \" -*- nroff -*-
+.SH NAME
+.\"
+forthc \- compile VNPForth program into object file
+.\"
+.\"
+.\"
+.SH SYNOPSIS
+.\"
+.B forthc
+[\-g] [\-p] [\-pg] [\-w] [\-fPIC] [\-fpic] [\-O] [\-P] [\-S] [\-s]
+[\-Dstring] [\-Ustring] [\-v] [\-h] file [ file ... ]
+.br
+.B forthc
+-M id [ id ... ]
+.br
+.B forthc
+-X id [ id ... ]
+.PP
+.\"
+.\"
+.\"
+.SH DESCRIPTION
+.\"
+.PP
+.B forthc
+compiles VNPForth source files into object files; that is, files
+having the extension ``.o'', ready for linking.
+.PP
+.\"
+.\"
+.\"
+.SS COMMAND LINE OPTIONS
+.\"
+.B forthc
+understands the following command line options.
+.TP
+.I "\-g"
+Adds symbolic debugging information to the object files produced by
+\fBforthc\fP.  This option is the VNPForth equivalent of the \fI-g\fP
+option of the \fBcc\fP compiler.  The compiler adds source-line based
+debugging information, in the same way as \fBcc\fP.  It also adds
+data and variable debug information, so that a standard debugger, for
+example \fBgdb\fP, can be used with the program.
+.TP
+.I "\-p"
+Adds gmon.out style line profiling calls to the object files produced
+by \fBforthc\fP.
+.TP
+.I "\-pg"
+Synonym for \fI-p\fP.
+.TP
+.I "\-w"
+Causes \fBforthc\fP to make all word definitions weak rather than global
+symbols.  Weak symbols can be overridden by user code without introducing
+multiple symbol definition problems at link time.  VNPForth's runtime library
+is compiled with this option.
+.TP
+.I "\-fPIC"
+Causes \fBforthc\fP to generate position independent code, for inclusion
+in shared libraries.  With this option set, all variable and word
+definitions are made through the linker's global offset table.
+.TP
+.I "\-fpic"
+Synonym for \fI-fPIC\fP.
+.TP
+.I "\-O"
+Turns on intermediate code optimization in \fBforthc\fP.  The compiler
+contains optimizations to remove unnecessary instructions and labels,
+inline short non-branching word definitions and boolean \fIfalse\fP
+and \fItrue\fP, and avoid some unnecessary branches.  This option switches
+these optimizations on.
+.TP
+.I "\-P"
+Causes \fBforthc\fP to leave behind intermediate language files it
+generates.  These files show the instructions the program contains in
+the compiler's intermediate code, and also contain a complete dump of the
+compiler's symbol and data tables.  This information may be useful
+when debugging either a Forth program, or the \fBforthc\fP compiler
+itself.  The file is written with the extension ``.p''.
+.TP
+.I "\-S"
+Causes \fBforthc\fP to leave behind the assembly language files it
+generates as a result of compilation.  This information may be useful
+when debugging a Forth program, or \fBforthc\fP itself.  The file is
+written with the extension ``.s''.
+.TP
+.I "\-s"
+Synonym for \fI-S\fP.
+.TP
+.I "\-Dstring"
+Defines \fIstring\fP for use with \fI[IFDEF]\fP conditional compilation.
+May be given multiple times.  See \fICONDITIONAL COMPILATION\fP below.
+.TP
+.I "\-Ustring"
+Cancel any previous definition of \fIstring\fP created with \fI-D\fP.  If
+there is no previous definition the option is ignored.  May be given
+multiple times.  \fI-D\fP and \fI-U\fP options are handled in the order in
+which they are given on the command line.
+.TP
+.I "\-M"
+This mode causes \fBforthc\fP to treat its arguments as Forth variable
+or word names, and to ``name-mangle'' each name given and print the
+result.  See \fINAME MANGLING\fP below.
+.TP
+.I "\-X"
+This mode causes \fBforthc\fP to treat its arguments as mangled Forth
+variable or word names, and to ``de-mangle'' each name given and print the
+result.
+.TP
+.I "\-h"
+Prints a brief help message, and exits.
+.TP
+.I "\-v"
+Prints the compiler version string, a copyright message, and exits.
+.PP
+.\"
+.\"
+.\"
+.SS FORTH LANGUAGE
+.\"
+.B forthc
+is case insensitive, and recognizes the following Forth language control
+structures:
+.PP
+( ...) | \\ ...
+.IP
+Text inside parentheses or text between a backslash character and the
+end of the input line is a Forth comment.
+.PP
+\&.( ...)
+.IP
+Forth comments may also start with ``.(''.  The compiler prints these
+comments during compilation.
+.PP
+VARIABLE word
+.br
+FVARIABLE word
+.IP
+These define new variables.  FVARIABLE is a synonym for VARIABLE, and
+is included for compatibility.  A variable has global scope, so can
+be accessed by any other source module.  The view of a variable
+from 'C' is
+.IP
+extern int \fIword\fP;
+.PP
+CONSTANT word
+.br
+FCONSTANT word
+.IP
+These define new constants.  The internal implementation of a constant
+is the same as that of a VARIABLE, so in effect this becomes a value
+that is globally accessible.  The current top of stack becomes the
+constant's value; this means that CONSTANT can, unfortunately, only be
+used in the ``main'' module.  FCONSTANT must be preceded by a floating
+point literal.
+.PP
+CREATE word size [ CHARS | CELLS ] ALLOT
+.IP
+This defines a new array variable, of \fIsize\fP characters or cells.
+A VNPForth ``cell'' is four bytes (one x86 machine word) in size.
+The external declaration in 'C' of an array is one of
+.IP
+extern int \fIword\fP [\fIsize\fP];
+.br
+extern char \fIword\fP [\fIsize\fP];
+.PP
+: newword ...words... ;
+.IP
+The words between ``:'' and ``;'' form the function definition of
+the new word \fInewword\fP.  This is a VNPForth subroutine definition.
+If it is to be called from 'C', \fInewword\fP can be declared as
+.IP
+extern void \fInewword\fP (void);
+.PP
+CODE newword
+...assembly language instructions...
+END-CODE
+.IP
+The new word \fInewword\fP is defined as being the assembly language
+instructions up to the END-CODE.  Comments in assembly language are
+text between a Forth backslash and the end of the input line.  A hash
+character may also be used as a comment introducer.  CODE words have
+the same external declaration in 'C' as ordinary words.
+.PP
+:NONAME ...words... ;
+.IP
+Creates a VNPForth anonymous subroutine definition, containing the words
+up to ``;''.  The address of the new function is placed on the top of
+the stack, and can either be run immediately with EXECUTE or saved
+for later execution.
+.PP
+IF statements [ ELSE elsestatements ] THEN
+.IP
+This tests the top of stack, and if non-zero, then \fIstatements\fP
+are executed.  If the top of stack is zero, any \fIelsestatements\fP
+are executed.  The flag value is popped off the stack.  ENDIF can
+be used as a synonym for ELSE.
+.PP
+[?]DO statements [ LEAVE | ?LEAVE ] statements [+]LOOP
+.IP
+The top two stack items are taken as loop limits.  \fIstatements\fP
+are then executed until the loop terminates.  LEAVE may be used to
+exit the loop early.  ?LEAVE exits the loop if the top of stack is
+non-zero.  ?DO is a variant of DO that will skip the loop
+statements completely if the loop limits are equal.  LOOP increments
+the loop index.  +LOOP pops the the current top of stack and adds it
+to the loop index.
+.PP
+BEGIN statements AGAIN | REPEAT
+.IP
+Repeatedly execute \fIstatements\fP forever, or until some other control
+construct, for example EXIT, exits the loop.
+.PP
+BEGIN statements test UNTIL
+.IP
+Repeatedly execute \fIstatements\fP, until \fItest\fP is true.
+.PP
+BEGIN statements test WHILE statements AGAIN | REPEAT
+.IP
+Repeatedly execute \fIstatements\fP while \fPtest\fP remains true.
+.PP
+CASE value1 OF statements ENDOF
+.br
+value2 OF ... ENDOF [ otherwise ] ENDCASE
+.IP
+Compare the top of stack against \fIvalue1\fP, \fIvalue2\fP, etc.  If
+a match is found, execute the \fIstatements\fP following OF.
+Execute any \fIotherwise\fP if no match is found.  Drop the value on
+the top of the stack.
+.PP
+\&." string"
+.IP
+Print \fIstring\fP.
+.PP
+ABORT" string"
+.IP
+If top of stack is not zero, print \fIstring\fP and ABORT.
+.PP
+C" string"
+.IP
+Create a ``counted string'' containing the data \fIstring\fP, and
+place its address on the top of the stack.
+.PP
+S" string"
+.IP
+Create a string containing the data \fIstring\fP, and place its
+address and length on the top of the stack.  For compatibilty with C
+all strings in VNPForth terminate with a nul character, not included
+in the length.
+.PP
+CHAR c
+.br
+[CHAR] c
+.IP
+Place the character literal value \fIc\fP on the top of the stack.
+For compatibility with other systems VNPForth also accepts ``'c''
+or ``'c''' as alternatives to ``CHAR c''.
+.PP
+\&' object
+.IP
+Place the address of \fIobject\fP (usually a VNPForth variable or
+function) on the top of the stack.
+.PP
+RECURSE
+.IP
+Make a call to the word currently being defined.  RECURSE is not
+required in VNPForth; the word being defined may also be simply
+called directly.
+.PP
+EXIT
+.IP
+Return from the current function.
+.PP
+All other language elements are treated as either numeric literals
+(integer or floating, as appropriate), or VNPForth word (function)
+calls.  For integer literals, \fBforthc\fP treats ``0x'' and ``$''
+prefixes as indicating hexadecimal, ``0b'' and ``%'' as binary,
+and ``0o'' as octal.  For compatibility with other systems, it also
+treats ``&'' and ``#'' as optional decimal integer literal prefixes.
+.PP
+.\"
+.\"
+.\"
+.SS NAME MANGLING
+.\"
+Normal Forth variable and word names often break the rules on
+acceptable symbol names for assembler, 'C', and other languages.
+.PP
+In order to create usable object files, \fBforthc\fP must convert such
+Forth identifiers into a suitable external symbols.  It does this by
+converting special characters in identifiers to Forth-like names,
+where possible.  Where it has no Forth-like name to use for a
+character, it uses hexadecimal digits.  Any uppercase letters are
+converted to lowercase.  To avoid clashing with any existing 'C' symbols,
+it  adds a 'v4_' prefix to all symbols.
+.PP
+Where an identifier starts with the special prefix '__', \fBforthc\fP
+strips the prefix and does only enough name mangling to prevent
+invalid 'C' symbols from being generated.  This allows programs to
+reference 'C' symbols without name mangling changing the symbol name.
+In addition the identifiers 'main' and '_start' are exceptions to
+name mangling.
+.PP
+For example, the Forth word \fI?DUP\fP is not a symbol that is
+callable from a 'C' program, since \fI?DUP\fP is not a valid 'C'
+symbol.  The linker will also not handle such symbols, nor will the
+assembler.  So, for this word, the compiler uses the symbol
+name \fIv4_Questiondup\fP.  For the Forth word \fI0<>\fP, the compiler
+generates \fIv4_z0_Less_Greater\fP.
+.PP
+The \fBforthc\fP option \fI-M\fP tells the compiler that its arguments
+are Forth identifiers, rather than the usual list of file names.  It
+will ``name-mangle'' each identifier given, and print the result.  This
+make it possible to discover the external, object file name of a Forth
+word, so that it can be used from 'C' or otherwise manipulated as a
+normal linkable symbol.
+.PP
+The \fBforthc\fP option \fI-X\fP tells the compiler to ``de-mangle''
+identifiers from 'C' into Forth identifiers.  De-mangling is not fully
+symmetrical with mangling, so the results of de-mangling a mangled
+Forth name may not produce the exact same name as the original.  It
+will however usually be close.
+.\"
+.\"
+.\"
+.SS CONDITIONAL COMPILATION
+.\"
+The \fBforthc\fP compiler contains support for conditional compilation.
+The compile time conditional checks are \fI[IFDEF]\fP and \fI[IFUNDEF]\fP.
+They have an optional \fI[ELSE]\fP and end with \fI[THEN]\fP.  \fI[ENDIF]\fP
+is a synonym for \fI[THEN]\fP.
+.PP
+Because VNPForth has no traditional word dictionary, conditional compilation
+instead uses strings that are defined with \fI-D\fP (and not undefined
+later with \fI-U\fP).  Definitions are case insensitive.  For example, if
+a program contains
+.IP
+[IFDEF] SOME_STRING statements [ELSE] other statements [THEN]
+.PP
+then \fI-Dsome_string\fP and \fI-DSOME_STRING\fP will both cause \fBforthc\fP
+to compile the statements up to the \fI[ELSE]\fP and ignore the
+others.  The test string must conform to the syntax rules for a Forth word,
+and may not be a language keyword or literal value.  \fI[IFUNDEF]\fP works
+similarly except that the test string must not be defined.
+.PP
+Conditional compilation directives nest as expected.  Unlike most other
+conditional compilation systems, \fBforthc\fP will parse code in the unused
+branch of a conditional and check its syntax.  However it will not execute
+any semantic actions for this code; that is, it does not generate symbols,
+variables, or code.  Apart from the syntax checking, it is as if the code
+is not present.
+.PP
+.\"
+.\"
+.\"
+.SH NOTES
+.\"
+All VARIABLEs and CONSTANTs are in fact globally accessible variables.
+.PP
+The compiler tries to implement the real Forth language.  However, Forth
+itself is not really designed for compilation into static, native
+forms, so on occasions this can show through.
+.PP
+Any executable statements not inside a word colon-definition, or a
+CODE definition, cause the compiler to generate a ``main'' module.
+It behaves as if all code not inside a colon-definition was in fact inside
+.IP
+: main ..... ;
+.PP
+The last value dropped, or in general used by the program, becomes the
+process exit status.  The VNPForth runtime library offers other functions
+to terminate the program.
+.PP
+.\"
+.\"
+.\"
+.SH EXAMPLES
+.\"
+The following short program is a VNPForth version of ``hello world'':
+.IP
+.nf
+\&." Hello, world" CR
+.br
+0 DROP
+.fi
+.PP
+.\"
+.\"
+.\"
+.SH ERRORS AND OMISSIONS
+.\"
+CONSTANTs are really just variables in disguise.  They may be varied,
+and can also be used only in the ``main'' module; that is, to set a
+value for them requires some code to be executed, and the very
+presence of this code triggers the compiler to generate a ``main''
+module.
+.PP
+The implementation of some of the control structures may be wrong.
+.PP
+Unlike real Forth, VNPForth does not allow control structure
+extensions to be created.
+.PP
+.\"
+.\"
+.\"
+.SH FILES
+.\"
+/usr/bin/forthc, or /usr/local/bin/forthc
+.\"
+.\"
+.\"
+.SH SEE ALSO
+.\"
+Man page for \fBlibforth\fP(3).
+.br
+Man page for the GNU assembler, \fBas\fP(1).
+.\"
