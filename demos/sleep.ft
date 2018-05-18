@@ -1,0 +1,47 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+\ Most of sleep(1).
+
+
+0 constant null
+
+\ Create two 2-int variable, representing the req struct timespec variable
+\ that the nanosleep system call requires
+create req 2 cells allot
+
+: sleep ( n -- , Sleep n seconds )
+    req ! 0 req cell+ !                 \ store n in REQ[0], 0 in REQ[1]
+    null req _nanosleep                 \ call nanosleep(), rem is null
+    -1 = if
+        s" nanosleep" pperror cr        \ handle nanosleep error case
+        1 _exit
+    then ;
+
+: usage ( -- , Print usage message )
+    ." Usage: " 0 arg type ."  seconds" cr ;
+
+\ Main program code
+
+\ If called with -h, --help, or incorrect arguments, print usage
+argc 2 = if
+    1 arg s" -h" compare 0=             \ compare with -h
+    1 arg s" --help" compare 0= or if   \ compare with --help
+        usage 0 _exit
+then then
+argc 2 <> if                            \ require exactly one argument
+    usage 1 _exit
+then
+
+\ Convert argument into an integer, and then sleep
+0 s>d 1 arg >number                     \ convert argv[1]
+0<> if
+    0 arg type
+    ." : invalid time interval"         \ unconverted chars; error in argument
+    cr 1 _exit                          \ exit with status 1
+then
+drop d>s                                \ lose unconverted string addr, narrow
+sleep                                   \ sleep
+
+0 drop                                  \ return 0 as exit status

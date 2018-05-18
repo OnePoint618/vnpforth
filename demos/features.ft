@@ -1,0 +1,192 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+
+\ Compile time comments and conditional compilation.
+.( Compiling features.ft )
+[ifdef] no_def abort [else] ." [ifdef] Conditional compilation" cr [then]
+[ifundef] no_def ." [ifundef] Conditional compilation" cr [else] abort [then]
+
+
+\ Binary, hexadecimal and octal numbers.
+." Value of 0b1010... 0B0101... is "
+   0b10101010101010101010101010101010 . 0B01010101010101010101010101010101 . cr
+." Value of %0101... is " %01010101010101010101010101010101 . cr
+." Value of 0xF0F0F0F0 0X0F0F0F0F is " 0xF0F0F0F0 . 0X0F0F0F0F . cr
+." Value of $0F0F0F0F is " $0F0F0F0F . cr
+." Value of 0o1234567 0O1234567 is " 0o1234567 . 0O1234567 . cr
+." Value of 123 &123 #123 0123 is " 123 . &123 . #123 . 0123 . cr
+
+
+\ Name mangling, case insensitivity, unicode identifiers.
+: ._Mangled ." name mangled function" ;
+." Normal call: " ._Mangled cr
+." All lowercase call: " ._mangled cr
+." All uppercase call: " ._MANGLED cr
+." Unmangled call: " __v4_Dot_mangled cr
+: £ ." unicode named function" ;
+." Direct unicode call: " £ cr
+
+
+\ Data synonyms.
+: .hex ( n -- ) base @ >r hex . r> base ! ;
+." First occurrence is "       s" s-abcdefgh" . .hex cr
+." Second occurrence is also " s" s-abcdefgh" . .hex cr
+." First occurrence is "       c" c-abcdefgh"   .hex cr
+." Second occurrence is also " c" c-abcdefgh"   .hex cr
+
+
+\ Recursion.
+: fib ( u -- u ) dup 2 u< if exit then 1- dup recurse swap 1- recurse + ;
+." Fibonacci: " 20 0 do i fib . loop cr
+
+
+\ Anonymous functions.
+:noname ." Anonymous function one" cr ; execute
+:noname ." Anonymous function two" cr ; execute
+
+
+\ Mutual recursion using anonymous functions.
+variable am
+: m am @ execute ;
+
+: f ( n -- n )
+    dup 0= if 1+ exit then
+    dup 1- recurse m - ;
+
+:noname ( n -- n )
+    dup 0= if exit then
+    dup 1- recurse f - ; am !
+
+: run ( xt n -- ) 0 do i over execute . loop drop cr ;
+." Mutual recursion: " ' m 20 run  \ 0 0 1 2 2 3 4 4 5 6 6 7 7 8 9 9 10 11 11 12
+." Mutual recursion: " ' f 20 run  \ 1 1 2 2 3 3 4 5 5 6 6 7 8 8 9 9 10 11 11 12
+
+
+\ System calls.
+variable clock
+' clock _time drop
+." Clock is " clock @ . cr
+
+
+\ Memory allocation.
+: .alloc ( addr -- addr ) dup _allocsize . ." bytes, addr " dup .hex ;
+: .a ( addr code -- addr ) . ." , " .alloc cr _.arena ;
+: .f ( code -- ) . cr _.arena ;
+." Allocate 23 bytes: " 23  allocate .a
+." Resize to 9 bytes: " 9   resize .a
+." Free: "                  free .f
+." Allocate  1 byte: "  1   allocate .a
+." Free: "                  free .f
+_arena _allocdefrag _.arena
+." Resize invalid: "    1 1 resize . . cr
+." Free invalid: "      1   free . cr
+
+
+\ Floating point.
+: pi ( n -- ) ( F: f -- pi , Estimate pi, iterating n loops, start f )
+    0 ?do fdup fsin f+ loop ;
+." Pi is " 100 3.0 pi fdup fdup f. fs. fe. cr
+
+: .c ( a u -- , Convert string into a float and print )
+    ." Float '" 2dup type ." ' is " >float
+    if fdup fdup f. fs. fe. else ." Err" then ;
+s" 123.456e7" .c cr s" -123.456e-7" .c cr
+s" 1e99"      .c cr s" -1e99"       .c cr
+s" 1.x"       .c cr s" 1.0ex"       .c cr
+
+." Square root of -1.0 is " -1.0 fsqrt fdup fdup f. fs. fe. cr
+
+
+\ Exceptions.
+: sfib ( n -- n ) dup 0< if -24 throw then fib ;
+: 1try ( n -- ) catch ?dup if ." throws exception " . drop else ." ok " . then ;
+." Fibonacci -10 " -10 ' sfib 1try cr
+." Fibonacci  10 "  10 ' sfib 1try cr
+
+: aborts ( -- ) 1 abort" not printed!" ;
+: overflow ( -- ??? ) begin 0 repeat ;
+: try ( -- ) catch ." throws exception " . ;
+." Abort, quit "     ' abort try ." and " ' quit try cr
+." Abort '...' "     ' aborts try cr
+." Stack underflow " ' drop try cr
+." Stack overflow "  ' overflow try cr
+." Division by 0 "   1 0 ' / try 2drop cr
+." Float / by 0.0 "  1.0 0.0 ' f/ try fdrop fdrop cr
+
+
+\ Programming aids.
+." String is" cr c" abcdefghijklmnopq" strlen 1+ dump
+." Dump code start is" cr ' dump 32 dump
+." Stack is" 1 2 3 .s cr
+." Stack base is " sp0 ? cr
+drop 2drop
+
+
+\ Constants aren't.
+0 constant zero
+." Value of ZERO is " zero . cr
+1 ' zero !
+." Value of ZERO is now " zero . cr
+
+
+\ Strings are always nul-terminated.
+: .allchars ( c-addr n -- ) 1+ 0 ?do dup i chars + c@ . loop ;
+." C-string: " c" abcdefg" count .allchars cr drop
+." S-string: " s" abcdefg"       .allchars cr drop
+
+
+\ Variables are global, and initialized to zero.  To make a variable
+\ appear to be initialized to some other value, hide it behind a word.
+variable _vmyvar
+variable _imyvar
+." Real value of vMYVAR is " _vmyvar @ . cr
+: myvar ( -- a )
+    _imyvar @ 0= if                     \ if not initialized, then
+        12345 _vmyvar !                 \ set initial value
+        true _imyvar !                  \ set flag
+    then _vmyvar ;                      \ return address of underlying variable
+
+." MYVAR is " myvar @ . cr
+54321 myvar !
+." MYVAR is now " myvar @ . cr
+
+
+\ Documented runtime primitives starting with '_' may be used directly.  These
+\ are usually something outside the DPANS standard or particular to VNPForth.
+\ Undocumented runtime primitives starting with '_' are internal to the
+\ runtime, and cannot be reliably used from non-runtime code.
+_dpush
+." Value pushed is the unpredictable " . cr
+
+
+\ External variables cannot be accessed directly by name, because the compiler
+\ doesn't know about them (and anything it doesn't know about from its
+\ symbol tables it assumes is an external function/word).  Access by address.
+' _argc @ ." Program argc is " . cr     \ _argc automatically set by 'main'
+' _argv @ ." Program argv is " .hex cr  \ _argv automatically set by 'main'
+' _envp @ ." Program envp is " .hex cr  \ _envp automatically set by 'main'
+
+
+\ Variables hidden behind words can still behave like variables, mostly.
+variable realvar
+: fakevar ( -- a ) realvar ;
+-99 fakevar ! fakevar @                 \ set REALVAR to -99 through FAKEVAR,
+                                        \ using FAKEVAR just like a variable
+." Value of FAKEVAR is " . cr
+  realvar ." REALVAR address is " .hex cr
+  fakevar ." FAKEVAR address is " .hex cr \ hard to tell them apart...
+' realvar ." REALVAR ' address is " .hex cr
+' fakevar ." FAKEVAR ' address is " .hex cr \ ...but possible
+
+
+\ Stacks are just another variable.
+1 2 3 4 5                               \ stack 1 2 3 4 5
+-99 ' _dstack !                         \ replace the bottom of stack with -99
+." Stack is " . . . . . cr
+
+
+\ The last value handled is the program's return code.
+depth 0= rdepth 0= and fdepth 0= and    \ check we left everything tidy
+invert drop

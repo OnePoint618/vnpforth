@@ -1,0 +1,45 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+\ Some of the functionality of mv(1), and ln(1).  Moving or linking to a
+\ directory is not implemented.
+
+
+: usage ( -- , Print usage message )
+    ." Usage: " 0 arg type ."  source destination" cr ;
+
+\ Main program code
+
+\ If called with -h, --help, or incorrect arguments, print usage
+argc 2 = if
+    1 arg s" -h" compare 0=             \ compare with -h
+    1 arg s" --help" compare 0= or if   \ compare with --help
+        usage 0 _exit
+then then
+argc 3 <> if                            \ require exactly two arguments
+    usage 1 _exit
+then
+
+\ Link the new file
+2 arg drop                              \ obtain argv[2], without length
+1 arg drop                              \ obtain argv[1], without length
+_link                                   \ call link() to create a new entry
+-1 = if
+    s" link" pperror ." : "             \ handle link error
+    1 arg type ." ->" 2 arg type cr
+    1 _exit
+then
+
+\ If mv'ing, also unlink the original
+0 arg + 2 - 2 s" mv" compare 0= if      \ compare argv[0] tail to "mv"
+    1 arg drop                          \ obtain argv[1] again
+    _unlink                             \ call unlink() to remove the file
+    -1 = if
+        s" unlink" pperror ." : "       \ handle unlink error
+        1 arg type cr
+        1 _exit
+    then
+then
+
+0 drop                                  \ return success exit status

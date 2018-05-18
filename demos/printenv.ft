@@ -1,0 +1,46 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+\ A mostly complete re-implementation of printenv(1).
+
+
+0 constant null
+
+: usage ( -- , Print usage message )
+    ." Usage: " 0 arg type ."  [ variable [ variable ... ] ]" cr ;
+
+\ Main program code
+
+\ If called with -h, --help, or incorrect arguments, print usage
+argc 2 = if
+    1 arg s" -h" compare 0=             \ compare with -h
+    1 arg s" --help" compare 0= or if   \ compare with --help
+        usage 0 _exit
+then then
+
+\ If called with no arguments, simply print the complete environment
+argc 1 = if
+    envp                                \ get the environ
+    begin
+        dup @                           \ get the current env string address
+        dup null <> while               \ exit loop when null pointer found
+        strlen type cr                  \ print the string stack top address
+        cell+                           \ move to next envp[] entry
+    repeat drop
+    0 _exit                             \ exit with status 0
+then
+
+variable status 0 status !
+
+\ Loop for each environment variable name requested
+argc 1 do
+    i arg getenv if                     \ get variable value of next arg
+        type cr                         \ success - print the value
+    else
+        1 status !                      \ set the return status to 1
+    then
+loop
+
+\ Return with the status we noted in the loop above
+status @ drop

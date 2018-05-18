@@ -1,0 +1,90 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+\ A very simple user shell.  There is one 'built-in' command - 'exit', no
+\ ability to set a working directory, and does not use $PATH to find
+\ commands to run.
+
+
+9 constant tab
+0 constant null
+
+: is-space ( c -- f , Return true if c is a whitespace character )
+    dup bl = swap tab = or ;            \ check for space or tab
+
+: trimstring ( a n -- a n , Trim leading/trailing space off a,n leaving a,n )
+    -trailing                           \ remove trailing spaces
+    begin
+        dup 0> while over c@ bl = while \ while more chars and first is space
+        1 /string                       \ remove one leading space
+    repeat ;
+
+: getline ( a n -- a n , Read in up to n characters to a, return a and count )
+    begin
+        ." 4th> "                       \ issue a prompt
+        2dup accept >r over r>          \ read in a candidate command line
+        trimstring                      \ trim spaces off the string
+        dup 0> if
+            2swap 2drop                 \ return the new buffer and length
+            exit                        \ leave the loop if non-empty command
+        then
+        2drop                           \ drop the candidate string
+    again ;
+
+: tokenize ( x-addr n token-addr -- , Build array of pointers to string tokens )
+    dup null swap !                     \ store null in tokens[0]
+    rot rot                             \ token-addr x-addr n
+    0 ?do                               \ for each char in x-addr
+        dup c@                          \ get c at x-addr
+        is-space if                     \ check for space or tab
+            null over c!                \ replace tab and space with nul
+        else
+            i 0= if true else           \ if the first time in the loop, or...
+                dup 1- c@ null =        \ ...if the prior character is nul
+            then
+            if
+                2dup swap !             \ store x-addr in argv-addr
+                >r cell+
+                null over ! r>          \ add one to argv-addr, store null
+            then
+        then
+        char+                           \ increment x-addr
+    loop
+    null swap c! drop ;                 \ terminate the last x-addr
+
+create cmd 1024 chars allot
+create exec-argv 256 cells allot
+
+\ Main program code
+
+begin
+    cmd 1024 getline                    \ read in a command line, leaving
+                                        \ buffer address and length on stack
+    2dup s" exit" compare 0<> while     \ leave the loop if 'exit' entered
+    _fork case                          \ fork, expecting to exec in child
+    0 of                                \ if return value was 0, then child
+        \ Child code
+        drop                            \ drop the zero pid from fork
+        exec-argv tokenize              \ create an argv array from command
+        envp                            \ stack execve arguments - envp...
+        exec-argv                       \ ...the tokenized argv[] array,...
+        exec-argv @                     \ ...and argv[0] - the file to exec
+        _execve drop                    \ call execve, lose any return status
+        s" exec" perror cr              \ handle exec error case
+        127 _exit                       \ exit with 127 if exec failed
+    endof
+    -1 of
+        \ Fork error code
+        s" fork" perror cr              \ handle fork error case
+    endof
+        \ Parent code
+        dup null null rot               \ stack waitpid args, NULL, NULL, pid
+        _waitpid 0= if                  \ wait for child exit, ignoring status
+            s" wait" perror cr          \ handle wait error case
+            1 _exit
+        then
+    endcase 2drop
+repeat 2drop
+
+0 drop                                  \ return 0 as exit status

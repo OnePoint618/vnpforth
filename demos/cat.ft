@@ -1,0 +1,68 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+\ Implements some of the functionality of cat(1).
+
+
+create read-buf 1024 chars allot
+
+: xfer-bytes ( -- , transfer data from stdin to stdout until EOF )
+    begin
+        1024 read-buf stdin _read       \ read up to 1024 chars into buf
+        dup -1 = if
+            drop
+            s" read" pperror cr         \ handle read error
+            1 _exit
+        then
+        dup 0> while                    \ done if read 0, end of file
+        read-buf stdout _write          \ write out the characters read
+        -1 = if
+            s" write" pperror cr        \ handle write error
+            1 _exit
+        then
+    repeat drop ;
+
+: usage ( -- , Print usage message )
+    ." Usage: " 0 arg type ."  [ file [ file ... ] ]" cr ;
+
+\ Main program code
+
+\ If called with -h or --help, print usage
+argc 2 = if
+    1 arg s" -h" compare 0=             \ compare with -h
+    1 arg s" --help" compare 0= or if   \ compare with --help
+        usage 0 _exit
+then then
+
+variable status 0 status !
+
+\ No arguments case
+argc 1 = if
+    xfer-bytes                          \ no args, so transfer stdin to out
+    0 _exit
+then
+
+\ Have arguments processing
+argc 1 do                               \ loop for each argument
+    0 0 i arg drop                      \ stack args for open (readonly)
+    _open                               \ call open() on the file
+    dup -1 = if
+        s" open" pperror ." : "         \ handle open error
+        i arg type cr
+        1 status !
+        drop                            \ drop file open fail status
+    else
+        stdin _close drop               \ close stdin
+        dup _dup                        \ dup the opened file onto stdin
+        stdin <> if
+            s" dup" pperror cr          \ handle dup error
+            1 status !
+        else
+            xfer-bytes                  \ transfer data
+        then
+        _close drop                     \ close opened file
+    then
+loop
+
+status @ drop                           \ return the exit status

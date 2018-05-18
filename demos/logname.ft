@@ -1,0 +1,23 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+\ Partial reimplementation of logname(1).  Calls libc functions directly.
+
+
+: printf ( a1 ... aN N -- , Call C printf with N arguments a1...aN )
+    ' __printf cexecute drop ;          \ use CEXECUTE to handle arguments,
+                                        \ and drop return status
+
+: getlogin ( -- a n , Call C library to return the user id in a, length n )
+    0 ' __geteuid cexecute              \ call C geteuid, with no arguments
+    1 ' __getpwuid cexecute             \ call C getpwuid, with euid argument
+                                        \ by luck, char* pw_name is first in the
+    @ ;                                 \ passwd struct - get pw_name address
+
+\ Main program code
+
+s" %s\n" drop getlogin                  \ stack format string and get logname
+2 printf                                \ print using libc printf
+
+0 drop                                  \ return 0 as exit status

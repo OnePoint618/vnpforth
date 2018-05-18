@@ -1,0 +1,35 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+\ Some of the functionality of rm(1).
+
+
+: usage ( -- , Print usage message )
+    ." Usage: " 0 arg type ."  [ file [ file ... ] ]" cr ;
+
+\ Main program code
+
+\ If called with -h, --help, or incorrect arguments, print usage
+argc 2 = if
+    1 arg s" -h" compare 0=             \ compare with -h
+    1 arg s" --help" compare 0= or if   \ compare with --help
+        usage 0 _exit
+then then
+argc 2 < if                             \ requires at least one argument
+    usage 1 _exit
+then
+
+variable status 0 status !
+
+argc 1 do                               \ loop for each argument
+    i arg drop                          \ obtain argv[i], without length
+    _unlink                             \ call unlink() to remove the file
+    -1 = if
+        s" unlink" pperror ." : "       \ handle unlink error
+        i arg type cr
+        1 status !
+    then
+loop
+
+status @ drop                           \ return the exit status

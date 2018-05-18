@@ -1,0 +1,28 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth demonstration program.
+
+\ reimann-zeta is called by an external C program.  Links with reimann.c
+\ which also contains the main routine.
+
+\ Summation of Reimann zeta function.  Low precision due to the limited
+\ accuracy of floats.
+
+
+: fexp ( u -- ) ( F: x -- r , Raise x to positive integral power u )
+    dup 0<> if
+        1- fdup 0 ?do fover f* loop
+        fswap fdrop
+    else drop fdrop 1.0 then ;
+
+: 1.0/ ( F: x -- 1/x )
+    1.0 fswap f/ ;
+
+: reimann-zeta ( x u -- ) ( F: -- r , Sum 1/i^x for i=1 to i=u-1 )
+    dup 0<> if
+        0.0 fdup 0 do
+           fswap 1.0 f+ fswap
+           fover dup fexp 1.0/ f+
+        loop
+        drop
+    else 2drop 0.0 then ;
