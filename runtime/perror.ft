@@ -1,0 +1,165 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ String messages for Linux system call error codes.
+
+: strerror ( e -- a u | X 0 , Return system error code's string description )
+    case
+    _eperm           of s" Operation not permitted" 0 endof
+    _enoent          of s" No such file or directory" 0 endof
+    _esrch           of s" No such process" 0 endof
+    _eintr           of s" Interrupted system call" 0 endof
+    _eio             of s" I/O error" 0 endof
+    _enxio           of s" No such device or address" 0 endof
+    _e2big           of s" Arg list too long" 0 endof
+    _enoexec         of s" Exec format error" 0 endof
+    _ebadf           of s" Bad file number" 0 endof
+    _echild          of s" No child processes" 0 endof
+    _eagain          of s" Try again" 0 endof
+    _enomem          of s" Out of memory" 0 endof
+    _eacces          of s" Permission denied" 0 endof
+    _efault          of s" Bad address" 0 endof
+    _enotblk         of s" Block device required" 0 endof
+    _ebusy           of s" Device or resource busy" 0 endof
+    _eexist          of s" File exists" 0 endof
+    _exdev           of s" Cross-device link" 0 endof
+    _enodev          of s" No such device" 0 endof
+    _enotdir         of s" Not a directory" 0 endof
+    _eisdir          of s" Is a directory" 0 endof
+    _einval          of s" Invalid argument" 0 endof
+    _enfile          of s" File table overflow" 0 endof
+    _emfile          of s" Too many open files" 0 endof
+    _enotty          of s" Not a typewriter" 0 endof
+    _etxtbsy         of s" Text file busy" 0 endof
+    _efbig           of s" File too large" 0 endof
+    _enospc          of s" No space left on device" 0 endof
+    _espipe          of s" Illegal seek" 0 endof
+    _erofs           of s" Read-only file system" 0 endof
+    _emlink          of s" Too many links" 0 endof
+    _epipe           of s" Broken pipe" 0 endof
+    _edom            of s" Math argument out of domain of func" 0 endof
+    _erange          of s" Math result not representable" 0 endof
+    _edeadlk         of s" Resource deadlock would occur" 0 endof
+    _enametoolong    of s" File name too long" 0 endof
+    _enolck          of s" No record locks available" 0 endof
+    _enosys          of s" Function not implemented" 0 endof
+    _enotempty       of s" Directory not empty" 0 endof
+    _eloop           of s" Too many symbolic links encountered" 0 endof
+    _ewouldblock     of s" Operation would block" 0 endof
+    _enomsg          of s" No message of desired type" 0 endof
+    _eidrm           of s" Identifier removed" 0 endof
+    _echrng          of s" Channel number out of range" 0 endof
+    _el2nsync        of s" Level 2 not synchronized" 0 endof
+    _el3hlt          of s" Level 3 halted" 0 endof
+    _el3rst          of s" Level 3 reset" 0 endof
+    _elnrng          of s" Link number out of range" 0 endof
+    _eunatch         of s" Protocol driver not attached" 0 endof
+    _enocsi          of s" No CSI structure available" 0 endof
+    _el2hlt          of s" Level 2 halted" 0 endof
+    _ebade           of s" Invalid exchange" 0 endof
+    _ebadr           of s" Invalid request descriptor" 0 endof
+    _exfull          of s" Exchange full" 0 endof
+    _enoano          of s" No anode" 0 endof
+    _ebadrqc         of s" Invalid request code" 0 endof
+    _ebadslt         of s" Invalid slot" 0 endof
+    _edeadlock       of s" Resource deadlck would occur" 0 endof
+    _ebfont          of s" Bad font file format" 0 endof
+    _enostr          of s" Device not a stream" 0 endof
+    _enodata         of s" No data available" 0 endof
+    _etime           of s" Timer expired" 0 endof
+    _enosr           of s" Out of streams resources" 0 endof
+    _enonet          of s" Machine is not on the network" 0 endof
+    _enopkg          of s" Package not installed" 0 endof
+    _eremote         of s" Object is remote" 0 endof
+    _enolink         of s" Link has been severed" 0 endof
+    _eadv            of s" Advertise error" 0 endof
+    _esrmnt          of s" Srmount error" 0 endof
+    _ecomm           of s" Communication error on send" 0 endof
+    _eproto          of s" Protocol error" 0 endof
+    _emultihop       of s" Multihop attempted" 0 endof
+    _edotdot         of s" RFS specific error" 0 endof
+    _ebadmsg         of s" Not a data message" 0 endof
+    _eoverflow       of s" Value too large for defined data type" 0 endof
+    _enotuniq        of s" Name not unique on network" 0 endof
+    _ebadfd          of s" File descriptor in bad state" 0 endof
+    _eremchg         of s" Remote address changed" 0 endof
+    _elibacc         of s" Can not access a needed shared library" 0 endof
+    _elibbad         of s" Accessing a corrupted shared library" 0 endof
+    _elibscn         of s" .lib section in a.out corrupted" 0 endof
+    _elibmax         of s" Attempting to link in too many shared libs" 0 endof
+    _elibexec        of s" Cannot exec a shared library directly" 0 endof
+    _eilseq          of s" Illegal byte sequence" 0 endof
+    _erestart        of s" Interrupted sys call should be restarted" 0 endof
+    _estrpipe        of s" Streams pipe error" 0 endof
+    _eusers          of s" Too many users" 0 endof
+    _enotsock        of s" Socket operation on non-socket" 0 endof
+    _edestaddrreq    of s" Destination address required" 0 endof
+    _emsgsize        of s" Message too long" 0 endof
+    _eprototype      of s" Protocol wrong type for socket" 0 endof
+    _enoprotoopt     of s" Protocol not available" 0 endof
+    _eprotonosupport of s" Protocol not supported" 0 endof
+    _esocktnosupport of s" Socket type not supported" 0 endof
+    _eopnotsupp      of s" Operation not supported on transport endpt" 0 endof
+    _epfnosupport    of s" Protocol family not supported" 0 endof
+    _eafnosupport    of s" Address family not supported by protocol" 0 endof
+    _eaddrinuse      of s" Address already in use" 0 endof
+    _eaddrnotavail   of s" Cannot assign requested address" 0 endof
+    _enetdown        of s" Network is down" 0 endof
+    _enetunreach     of s" Network is unreachable" 0 endof
+    _enetreset       of s" Network dropped connection because of reset" 0 endof
+    _econnaborted    of s" Software caused connection abort" 0 endof
+    _econnreset      of s" Connection reset by peer" 0 endof
+    _enobufs         of s" No buffer space available" 0 endof
+    _eisconn         of s" Transport endpoint is already connected" 0 endof
+    _enotconn        of s" Transport endpoint is not connected" 0 endof
+    _eshutdown       of s" Cannot send after transport endpoint shtdn" 0 endof
+    _etoomanyrefs    of s" Too many references: cannot splice" 0 endof
+    _etimedout       of s" Connection timed out" 0 endof
+    _econnrefused    of s" Connection refused" 0 endof
+    _ehostdown       of s" Host is down" 0 endof
+    _ehostunreach    of s" No route to host" 0 endof
+    _ealready        of s" Operation already in progress" 0 endof
+    _einprogress     of s" Operation now in progress" 0 endof
+    _estale          of s" Stale NFS file handle" 0 endof
+    _euclean         of s" Structure needs cleaning" 0 endof
+    _enotnam         of s" Not a XENIX named type file" 0 endof
+    _enavail         of s" No XENIX semaphores available" 0 endof
+    _eisnam          of s" Is a named type file" 0 endof
+    _eremoteio       of s" Remote I/O error" 0 endof
+    _edquot          of s" Quota exceeded" 0 endof
+    _enomedium       of s" No medium found" 0 endof
+    _emediumtype     of s" Wrong medium type" 0 endof
+    0                of s" Success" 0 endof
+    s" " 0 endcase
+    2>r drop 2r> ;                      \ adjust for 0 added for endcase
+
+: perror ( s-addr u -- , Print error message for the current ERRNO )
+    ?dup if                             \ if u is zero, omit intro string
+        type ." : "
+    else drop then                      \ else drop unused s-addr
+    errno strerror ?dup if              \ get string for ERRNO
+        type                            \ print strerror returned string
+    else
+        drop                            \ drop 0 strerror s-addr
+        ." System error code " errno 0 .r
+    then ;
+
+: pperror ( s-addr u -- , Print error message, prefixed with 0 arg )
+    0 arg type ." : " perror ;

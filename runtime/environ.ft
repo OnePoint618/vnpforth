@@ -1,0 +1,69 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Environment query, case insensitive.
+
+( nodoc ) : _(environment?) ( c-addr1 u1 c-addr2 u2 -- t | c-addr1 u1 f )
+    2over comparei 0= if 2drop true else false then ;
+
+: environment? ( c-addr u -- false | i|n|f|d|u true , Query the environment )
+    s" /counted-string"    _(environment?) if 255 true exit then
+    s" /hold"              _(environment?) if 84 true exit then
+    s" /pad"               _(environment?) if 84 true exit then
+    s" address-unit-bits"  _(environment?) if 8 true exit then
+    s" block"              _(environment?) if false true exit then
+    s" block-ext"          _(environment?) if false true exit then
+    s" core"               _(environment?) if true true exit then
+    s" core-ext"           _(environment?) if false true exit then
+    s" double"             _(environment?) if false true exit then
+    s" double-ext"         _(environment?) if false true exit then
+    s" exception"          _(environment?) if true true exit then
+    s" exception-ext"      _(environment?) if true true exit then
+    s" facility"           _(environment?) if false true exit then
+    s" facility-ext"       _(environment?) if false true exit then
+    s" file"               _(environment?) if false true exit then
+    s" file-ext"           _(environment?) if false true exit then
+    s" floating"           _(environment?) if true true exit then
+    s" floating-ext"       _(environment?) if false true exit then
+    s" floating-stack"     _(environment?) if 6 true exit then
+    s" floored"            _(environment?) if false true exit then
+    s" locals"             _(environment?) if false true exit then
+    s" locals-ext"         _(environment?) if false true exit then
+    s" #locals"            _(environment?) if 0 true exit then
+    s" max-char"           _(environment?) if 255 true exit then
+    s" max-d"              _(environment?) if 0 invert dup 1 rshift
+                                              true exit then
+    s" max-float"          _(environment?) if 3.40282e+38 true exit then
+    s" max-n"              _(environment?) if 0 invert 1 rshift true exit then
+    s" max-u"              _(environment?) if 0 invert true exit then
+    s" max-ud"             _(environment?) if 0 invert dup true exit then
+    s" memory-alloc"       _(environment?) if true true exit then
+    s" memory-alloc-ext"   _(environment?) if true true exit then
+    s" return-stack-cells" _(environment?) if 2048 16 - true exit then
+    s" search-order"       _(environment?) if false true exit then
+    s" search-order-ext"   _(environment?) if false true exit then
+    s" stack-cells"        _(environment?) if 4096 16 - true exit then
+    s" string"             _(environment?) if true true exit then
+    s" string-ext"         _(environment?) if true true exit then
+    s" tools"              _(environment?) if true true exit then
+    s" tools-ext"          _(environment?) if false true exit then
+    s" wordlists"          _(environment?) if 0 true exit then
+    s" vnpforth"           _(environment?) if true true exit then
+    2drop false ;

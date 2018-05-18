@@ -1,0 +1,64 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Minimal programming-tools.
+
+: .s ( w1 ... wn -- , Print the contents of the data stack )
+    depth 0= if ." (stack empty)" exit then
+    depth 0 ?do
+        cr i pick dup                   \ cr, pick stacked item, duplicate
+        base @ >r                       \ save current base
+        decimal 11 .r space             \ print in decimal
+        ." [" hex 8 u.r ." ]"           \ print again in hex
+        r> base !                       \ restore original base
+    loop ;
+
+: ? ( a-addr -- , Display the value stored at a-addr )
+    @ . ;
+
+: dump ( addr u -- , Display u bytes starting at addr )
+    base @ >r hex                       \ save base, use hex
+    over + swap begin                   \ stack is endaddr curraddr
+        2dup > while                    \ done if curraddr >= endaddr
+        dup 8 u.r                       \ print addr of the next 16-byte block
+        2dup 16 0 do                    \ display block as 2-digit hex
+            space 2dup > if
+                dup c@ <# 0 # # #> type
+            else
+                2 spaces
+            then 1+
+        loop 2drop
+        2 spaces
+        16 0 do                         \ redisplay as ascii if printable
+            2dup > if
+                dup c@
+                dup bl char ~ 1+ within invert if
+                    drop char .         \ use . for unprintable chars
+                then emit
+            then 1+
+        loop cr
+    repeat 2drop
+    r> base ! ;
+
+: see   ( -- , Null definition for compatibility )
+    ." (not implemented)" ;
+
+: words ( -- , Null definition for compatibility )
+    ." (not implemented)" ;

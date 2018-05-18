@@ -1,0 +1,141 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Basic I/O functions.
+
+\ Use lowercase for numbers except if _strictansi.  Forth ANSI tests expect
+\ uppercase characters here.
+
+: accept ( a n -- n , Read in up to n characters to a, return count )
+    tuck                                \ save n under a, for later
+    0 ?do                               \ repeat until max chars
+        key dup 10 = if                 \ get a key, and test against CR
+            2drop drop
+            i unloop exit               \ if CR, return num chars read
+        then
+        over i + c!                     \ store char and continue
+    loop drop ;                         \ return max char count
+
+: count ( a -- a+1 n , Convert counted string into address and count )
+    dup c@ swap char+ swap ;
+
+create _hldbuf 84 chars allot           ( Conversion output buffer, 84 chars )
+variable hld                            ( Hold pointer into conversion buffer )
+variable _base                          ( Underlying current I/O numeric base )
+variable _ansi                          ( Underlying variable for _strictansi )
+
+: _strictansi ( -- a , Strict ansi flag, if true use uppercase for # )
+    _ansi ;
+
+: base ( -- a , Initialize BASE to 10 if not yet set, return address )
+    _base @ 0= if                       \ see if BASE is zero
+        10 _base !                      \ set to 10
+    then _base ;                        \ leave BASE address on the stack
+
+: <# ( -- , Set HLD to the end of the conv buffer )
+    _hldbuf 84 + hld ! ;
+
+: hold ( c -- , Decrement HLD, and place c in the conv buffer )
+    hld @ 1- dup hld ! c! ;
+
+: # ( ud -- ud , Put last digit of ud into the buffer, return ud/BASE )
+    base @ um/mod swap                  \ divide by base, find remainder
+    dup 9 > if
+        _strictansi @
+        if char A else char a then
+        1- char 9 - +                   \ if above 9, add ('A'[or 'a']-1)-'9'
+    then
+    char 0 + hold 0 ;                   \ add '0', and hold character
+
+: #s ( ud -- 0 0 , Place all digits of ud in the conv buffer, return 0 0 )
+    begin                               \ loop
+        #                               \ convert next digit
+        2dup or 0> while                \ repeat until u reduced to zero
+    repeat ;
+
+: sign ( n -- , Append '-' to the conv buffer if n is negative )
+    0< if                               \ check for negative n
+        char - hold                     \ add '-' to conv buffer
+    then ;
+
+: #> ( w w -- b u , Return the conv buffer as a string and char count )
+    2drop hld @ _hldbuf 84 + over - ;
+
+: hex     ( -- , Set base 16 ) 16 base ! ;
+: decimal ( -- , Set base 10 ) 10 base ! ;
+: octal   ( -- , Set base 8 )   8 base ! ;
+
+: u.r ( u n -- , print u unsigned right-justified width n, in base BASE )
+    >r <# 0 #s #> dup r> swap -
+    dup 0> if spaces else drop then type ;
+
+: .r ( w n -- , Print w, signed if BASE=10 otherwise unsigned, width n )
+    >r base @ 10 xor if                 \ check if BASE is 10
+        r> u.r exit                     \ print as unsigned
+    then
+    dup >r abs <# 0 #s r> sign #>       \ print as signed
+    dup r> swap -
+    dup 0> if spaces else drop then type ;
+
+: u. ( u -- , Print u unsigned, in base BASE )
+    0 u.r space ;
+
+: . ( w -- , Print w, signed if BASE=10 otherwise unsigned )
+    0 .r space ;
+
+: >number ( ud1 c-addr1 u1 -- ud2 c-addr2 u2 , Convert string to number )
+    begin
+        dup 0> while                    \ break if u is zero
+        over c@                         \ read the char at c-addr
+        dup char a char z 1+ within if
+            char a - char A +           \ convert to uppercase if lowercase
+        then
+        dup char 0 char 9 1+ within
+        over char A char Z 1+ within or invert if
+            drop exit                   \ reject if not '0' to '9', 'A' to 'Z'
+        then
+        dup char 9 > if
+            char A - 10 +               \ if above '9', x = c-'A'+10
+        else
+            char 0 -                    \ otherwise, x = c-'0'
+        then
+        dup base @ < invert if          \ leave loop if this is >= BASE
+            drop exit
+        then
+        swap >r swap >r >r              \ save u and c-addr, then x
+        drop base @ um* drop r> um+     \ ud = ud*base + x
+        r> char+                        \ c-addr++
+        r> 1-                           \ u--
+    repeat ;
+
+: toupper ( c -- uc , Convert c to uppercase, if within a-z )
+    dup char a char z 1+ within if char a - char A + then ;
+
+: tolower ( c -- lc , Convert c to lowercase, if within A-Z )
+    dup char A char Z 1+ within if char A - char a + then ;
+
+: strlen ( c-addr -- c-addr u , Return addr, length of null-terminated string )
+    0 begin
+        2dup + c@ 0= invert while       \ if c-addr + len char is null exit
+        1+                              \ increment length measure
+    repeat ;
+
+: convert ( ud1 c-addr1 -- ud2 c-addr2 , Convert string to number, obsolete )
+    char+ -1 >number drop ;

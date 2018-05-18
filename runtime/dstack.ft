@@ -1,0 +1,127 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ Forth data stack definition.
+
+create _dstack 4096 cells allot         ( Forth data stack, 4080 cells )
+                                        \ 4096 - 16 for exception handling
+( nodoc ) variable _dsindex             ( Forth data stack current index )
+
+
+\ Forth data stack push and pop functions.
+
+\ Both functions will and must preserve all registers, with the caveat that
+\ pop returns the popped stack value in eax.
+\ These functions take arguments from registers, and do not conform to the
+\ Intel ABI standard.
+\ _dpush: input  eax, value to push
+\         output eax, unchanged, value pushed
+\ _dpop:  output eax, value popped
+
+( nodoc ) code _dpush ( -- w , Push %eax onto the data stack )
+    push %ecx                           \ save ecx, edx
+    push %edx
+    mov $4080,%ecx                      \ ecx = 4080 user-visible cells
+    mov v4__dstack@GOT(%ebx),%edi       \ edi = &_dstack[0]
+    mov v4__dsindex@GOT(%ebx),%esi      \ esi = &_dsindex
+    mov $-3,%edx                        \ edx = stack overflow exception
+    call v4__push@PLT
+    pop %edx                            \ restore edx, ecx
+    pop %ecx
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _dpop ( w -- , Pop the data stack into %eax )
+    push %edx                           \ save edx
+    mov v4__dstack@GOT(%ebx),%edi       \ edi = &_dstack[0]
+    mov v4__dsindex@GOT(%ebx),%esi      \ esi = &_dsindex
+    mov $-4,%edx                        \ edx = stack underflow exception
+    call v4__pop@PLT
+    pop %edx                            \ restore edx
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: depth ( -- n , Return the depth of the stack )
+    _dsindex @ ;
+
+: sp0 (  -- a , Return the address of the data stack base )
+    _dstack ;
+
+: sp@ ( -- a , Return the effective address of the data stack pointer )
+    depth 1- cells sp0 + ;
+
+: sp! ( a -- , Set stack pointer to a, obtained previously with SP@ )
+    sp0 - cell+ cell / _dsindex ! ;
+
+( nodoc ) variable _(swap)
+: swap ( w1 w2 -- w2 w1 , Swap the top two items of the stack )
+    >r _(swap) ! r> _(swap) @ ;
+
+: drop ( w -- , Drop an item from the data stack )
+    if then ;
+
+: dup ( w -- w w , Duplicate the top item of the stack )
+    sp@ @ ;
+
+: over ( w1 w2 -- w1 w2 w1 , Duplicate w1 onto the top of the stack )
+    sp@ 0 cell+ - @ ;
+
+: ?dup ( w -- w w | 0 , Duplicate w if nonzero )
+    dup if dup then ;
+
+: nip ( w1 w2 -- w2 , Remove the item under the top of the stack )
+    swap drop ;
+
+: rot ( w1 w2 w3 -- w2 w3 w1 , Rotate the top three stacked items )
+    >r swap r> swap ;
+
+: -rot ( w1 w2 w3 -- w3 w1 w2 , Counter-rotate the top three stacked items )
+    rot rot ;
+
+: tuck ( w1 w2 -- w2 w1 w2 , Tuck the top item under its underling )
+    swap over ;
+
+: pick ( wn wn-1 ... w0 x -- wn wn-1 ... w0 wx , Pick item x from the stack )
+    1+ cells sp@ swap - @ ;
+
+: roll ( wn wn-1 ... w0 n -- wn-1 ... w0 wn , Roll top n stack items )
+    dup if                              \ test to see if x is non-zero
+        swap >r                         \ move w0 to return stack
+        1- recurse                      \ roll n-1 of the remaining stack
+        r> swap                         \ restore old w0
+    else
+        drop                            \ x is zero - do nothing
+    then ;
+
+: 2drop ( w1 w2 -- , Drop the top two items )
+    drop drop ;
+
+: 2dup ( w1 w2 -- w1 w2 w1 w2 , Duplicate the top two items )
+    over over ;
+
+: 2over ( w1 w2 w3 w4 -- w1 w2 w3 w4 w1 w2 , Copy w1 w2 over w3 w4 )
+    3 pick 3 pick ;
+
+: 2swap ( w1 w2 w3 w4 -- w3 w4 w1 w2 , Swap the top two pairs of items )
+    2over 2>r 2>r 2drop 2r> 2r> ;

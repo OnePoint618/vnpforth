@@ -1,0 +1,169 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ Arithmetic functions.
+
+code 1+ ( n -- n+1 , Increment n )
+    call v4__dpop@PLT
+    inc %eax                            \ eax++
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code 1- ( n -- n-1 , Decrement n )
+    call v4__dpop@PLT
+    dec %eax                            \ eax--
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code um+ ( u1 u2 -- ur cy , Add u1 to u2 giving ur and cy )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = u2
+    call v4__dpop@PLT                   \ eax = u1
+
+    xor %edx,%edx                       \ edx = 0
+    add %edi,%eax                       \ eax = eax + edi
+    rcl $1,%dx                          \ edx = carry bit
+    mov %edx,%edi                       \ edi = carry bit
+    call v4__dpush@PLT
+    mov %edi,%eax                       \ eax = carry bit
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code um* ( u1 u2 -- ur cy , Multiply u1 by u2 giving double result )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = n2
+    call v4__dpop@PLT                   \ eax = n1
+
+    mul %edi                            \ edx:eax = eax * edi
+    mov %edx,%edi                       \ edi = carry bit
+    call v4__dpush@PLT
+    mov %edi,%eax                       \ eax = carry bit
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _(um/mod) ( udl udh un -- ur uq , Divide udh:udl by un )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = un
+    call v4__dpop@PLT
+    mov %eax,%esi                       \ esi = udh
+    call v4__dpop@PLT                   \ eax = udl
+    mov %esi,%edx                       \ edx = udh
+
+    div %edi                            \ eax:edx = eax / edi
+    mov %eax,%edi                       \ temporarily save quotient eax
+    mov %edx,%eax                       \ eax = remainder
+    call v4__dpush@PLT
+    mov %edi,%eax                       \ eax = quotient
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: um/mod ( udl udh un -- ur uq , Divide udh:udl by un, leaving ur and uq )
+    dup 0= if -10 throw then _(um/mod) ;
+
+( nodoc ) code _(sm/rem) ( dl dh n -- r q , Divide dh:dl by n )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = n
+    call v4__dpop@PLT
+    mov %eax,%esi                       \ esi = dh
+    call v4__dpop@PLT                   \ eax = dl
+    mov %esi,%edx                       \ edx = dh
+
+    idiv %edi                           \ eax:edx = eax / edi
+    mov %eax,%edi                       \ temporarily save quotient eax
+    mov %edx,%eax                       \ eax = remainder
+    call v4__dpush@PLT
+    mov %edi,%eax                       \ eax = quotient
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: sm/rem ( dl dh n -- r q , Divide dh:dl by n, leaving r and q )
+    dup 0= if -10 throw then _(sm/rem) ;
+
+: + ( u1 u2 -- ur , Add u1 to u2, ignoring carry )
+    um+ drop ;
+
+: fm/mod ( dl dh n -- r q , Floored division of dh:dl by n, leaving r and q )
+    2dup >r >r sm/rem over              \ duplicate dh, n, div, copy over rem
+    r> r@ xor 0< and if                 \ test if dh^n<0 && rem!=0
+        1- swap r@ + swap               \ q--, r+=n
+    then rdrop ;
+
+: negate ( n -- -n , Change sign of n )
+    invert 1+ ;
+
+: dnegate ( d -- -d , Change sign of d )
+    invert >r invert 1 um+ r> + ;
+
+: - ( w1 w2 -- wr , Subtract w2 from w1, giving wr )
+    negate + ;
+
+: abs ( n -- u , Obtain absolute value of n )
+    dup 0< if negate then ;
+
+: m* ( n1 n2 -- d , Multiply n1 by n2, giving d )
+    2dup xor 0< >r abs swap abs um* r> if dnegate then ;
+
+: * ( n1 n2 -- n , Multiply n1 by n2, ignoring overflow )
+    um* drop ;
+
+: m/mod ( dl dh n -- r q , Division of dh:dl by n, leaving r and q )
+    sm/rem ;
+
+: s>d ( n -- d , Convert signed n to double d )
+    dup 0> if 0 exit then negate 0 dnegate ;
+
+: d>s ( d -- n , Convert double d to signed n )
+    drop ;
+
+: /mod ( n1 n2 -- r q , Divide n1 by n2, return remainder and quotient )
+    >r s>d r> m/mod ;
+
+: mod ( n1 n2 -- n , Return the remainder of dividing n1 by n2 )
+    >r s>d r> m/mod drop ;
+
+: / ( n1 n2 -- n , Divide n1 by n2 )
+    >r s>d r> m/mod swap drop ;
+
+: */mod ( n1 n2 n3 -- n4 n5 , Return remainder and quotient of n1 * n2 / n3 )
+    >r m* r> m/mod ;
+
+: */ ( n1 n2 n3 -- n , Return n1 * n2 / n3 )
+    >r m* r> m/mod swap drop ;
+
+: 2* ( n -- n*2 , Double n )
+    1 lshift ;
+
+: 2/ ( n -- n/2 , Halve n, leaving MSB unchanged )
+    dup 0 invert 1 rshift invert and
+    swap 1 rshift or ;

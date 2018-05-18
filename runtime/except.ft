@@ -1,0 +1,155 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+\ Forth exception handling.
+
+\ An exception handler's context is the %ebp of the CATCH function's
+\ host system stack frame.  CATCH saves this as the current handler,
+\ pushes the previous handler and data and stack contexts onto the return
+\ stack, and then calls its supplied xt token.  If xt returns, CATCH
+\ drops the saved contexts and exits normally.
+
+\ THROW restores data and stack contexts, and retrieves the %ebp saved by
+\ CATCH as the current handler.  From this it restores CATCH's caller's %ebx
+\ (nugatory if not PIC) and %ebp, reconstructs %esp, and then jumps to
+\ CATCH's return address.  Luckily there is no need to restore any other
+\ registers.
+
+\ THROW and CATCH use the return stack for exception frames.  It is not
+\ possible to catch return stack underflow, because on underflow the
+\ exception frame has been lost.  Handled for now by always treating
+\ return stack underflow as uncatchable.  Uncaught return stack overflow
+\ works correctly.
+
+
+\ x86 stack frames.
+
+\ Frames grow downwards.  A Forth word stack frame header is
+\     return address
+\     caller's ebp register  <- ebp register, saved as handler
+\     caller's ebx register
+
+\ To restore
+\     ebx = *(handler-4)              (CATCH upframe ebx)
+\     ebp = *(handler)                (CATCH upframe ebp)
+\     esp = ebp-4                     (CATCH upframe esp, 4 is const non-code)
+\     jump to *(handler+4)            (CATCH return address, upframe resume)
+
+( nodoc ) code _(ehrestore) ( %ebp -- , Jump to ebp caller, no return )
+    call v4__dpop@PLT
+
+    mov -4(%eax),%ebx                   \ restore ebx
+    mov (%eax),%ebp                     \ restore ebp
+    mov %ebp,%esp
+    sub $4,%esp                         \ restore esp, non-code callers ONLY!
+    mov 4(%eax),%eax                    \ eax = return address
+    jmp *%eax                           \ restore eip
+                                        \ NOT REACHED
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _(ehcontext) ( -- w , Returns the caller's %ebp )
+    mov (%ebp),%eax                     \ unwind, eax = caller's (CATCH's) ebp
+    call v4__dpush@PLT                  \ push caller's ebp
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) variable _(ehhandler)         \ current exception handler
+
+( nodoc ) : _getehhandler ( -- a , Return current exception handler )
+    _(ehhandler) @ ;
+
+: catch ( xt -- 0 | exc_code , Catch exceptions raised by THROW )
+    sp@ >r                              \ save data stack state
+    _fp@ >r                             \ save float stack state
+    _(ehhandler) @ >r                   \ save the previous handler
+    _(ehcontext) >r                     \ get and save the x86 context
+    rp@ _(ehhandler) !                  \ set current rstack state as handler
+
+    execute                             \ execute, returns if no THROW
+
+    rdrop                               \ drop saved x86 context
+    r> _(ehhandler) !                   \ restore previous handler
+    2rdrop                              \ drop saved stack states
+    0 ;                                 \ normal completion
+
+( nodoc ) : _(ehuncaught) ( ??? exc_code -- , Handle exception if uncaught )
+    dup -6 = if                         \ special case rstack underflow
+        0 _(ehhandler) !                \ force uncatchable
+    then
+    _(ehhandler) @ if exit then         \ not uncaught if there is a handler
+
+    dup -56 = if drop _quit then        \ clean and silent exit, no return
+
+    stderr outfile-id !                 \ write messages to stderr
+
+    cr ." Uncaught exception at "
+    _(ehcontext) @                      \ get our context and unwind to THROW
+    cell+ @                             \ retrieve THROW's return address
+    hex 0 .r ." : "                     \ print the address of the THROW call
+
+    case
+    -1 of ." abort" endof               \ explicit abort
+    -2 of ." quoted abort" endof        \ explicit abort with printed string
+    -3 of ." stack overflow" endof      \ system-generated
+    -4 of ." stack underflow" endof
+    -5 of ." return stack overflow" endof
+    -6 of ." return stack underflow (uncatchable)" endof
+    -10 of ." division by zero" endof
+    -24 of ." invalid numeric argument" endof
+    -42 of ." floating-point divide by zero" endof
+    -44 of ." floating-point stack overflow" endof
+    -45 of ." floating-point stack underflow" endof
+    -57 of ." i/o error" endof          \ from coreio.ft, maybe DPANS, or not?
+    -2048 of ." out of memory" endof    \ from alloc.ft _allocb, non-DPANS
+
+    ." exception code "
+    decimal dup 0 .r                    \ if nothing specific, print the code
+
+    endcase cr _abort ;                 \ no return
+
+( nodoc ) variable _(ehflag)            \ double exception catcher
+
+: throw  ( ??? exc_code -- ??? exc_code , Raise exception exc_code for CATCH )
+    dup if                              \ 0 THROW is no-op
+        _(ehflag) @ if                  \ double exception if flag is set
+            cr ." Internal error: double exception, abort forced"
+            cr _abort
+        then
+        _setstackeh                     \ prevent any possible overflow
+        true _(ehflag) !                \ set local eh flag
+
+        _(ehuncaught)                   \ uncaught?, if yes then no return
+
+        _(ehhandler) @ rp!              \ restore return stack
+        r>                              \ retrieve x86 context, leave on data
+        r> _(ehhandler) !               \ restore prev handler
+        r> _fp!                         \ restore float stack
+        r> rot rot 2>r                  \ exchange x86 context and code with r@
+        sp! drop                        \ restore data stack
+        2r>                             \ recover x86 context and code
+
+        _clrstackeh                     \ done with stacks, so clear stack eh
+        false _(ehflag) !               \ clear local eh flag
+
+        _(ehrestore)                    \ restore the host stack, no return
+    else drop then ;

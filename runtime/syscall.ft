@@ -1,0 +1,98 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ General interface to Linux kernel calls.  Pops the number of arguments
+\ to the call, the call number itself, and then the number of arguments it
+\ was told the call has.  Places the arguments in the correct registers for
+\ Linux and calls int80.  After the int80, pushes %eax -- the value returned
+\ by the call -- onto the data stack.
+
+\ A Linux kernel call can handle a maximum of six arguments.  Throws -24
+\ exception if N > 6.
+
+code _syscall ( a1 ... aN X N -- status , Call syscall X with N arguments )
+    call v4__dpop@PLT                   \ eax = number of arguments N
+    cmp $7,%eax
+    jb 9f                               \ if N >= 7
+    mov $-24,%eax                       \   eax = exception code -24
+    call v4__dpush@PLT                  \   push exception code
+    call v4_throw@PLT                   \   raise invalid numeric arg
+                                        \   NOT REACHED
+9:
+    mov %eax,%edi                       \ edi = N
+
+    push %ebx                           \ save ebx
+    push %ebp                           \ save ebp
+
+    mov %eax,%ecx
+    inc %ecx                            \ ecx = N + 1
+8:                                      \ do
+    call v4__dpop@PLT                   \   eax = aI, or X on first iteration
+    push %eax                           \   push aI, or X
+    loop 8b                             \ while --ecx > 0
+
+    mov %edi,%eax                       \ eax = N
+
+    cmp $6,%eax
+    jb 6f                               \ if N >= 6 then
+    pop %ebp                            \   ebp = a6
+6:  cmp $5,%eax
+    jb 5f                               \ if N >= 5 then
+    pop %edi                            \   edi = a5
+5:  cmp $4,%eax
+    jb 4f                               \ if N >= 4 then
+    pop %esi                            \   esi = a4
+4:  cmp $3,%eax
+    jb 3f                               \ if N >= 3 then
+    pop %edx                            \   edx = a3
+3:  cmp $2,%eax
+    jb 2f                               \ if N >= 2 then
+    pop %ecx                            \   ecx = a2
+2:  cmp $1,%eax
+    jb 1f                               \ if N >= 1 then
+    pop %ebx                            \   ebx = a1
+1:
+
+    pop %eax                            \ eax = X
+    int $0x80                           \ make the system call
+
+    pop %ebp                            \ restore ebp
+    pop %ebx                            \ restore ebx
+
+    call v4__dpush@PLT                  \ push the result onto the Forth stack
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+
+\ After a syscall, determine if it looks like the call was successful.
+\ If it was, return the value.  If not, set ERRNO to -result, and return -1.
+
+variable _errno                         ( Underlying variable for ERRNO )
+: _post_syscall ( r -- r | -1 , Returns r, or sets ERRNO and returns -1 )
+    dup -125 -1 within if               \ test against known errno values
+        negate _errno !                 \ if in errno range, set errno to -r
+        -1                              \ return -1
+    then ;
+
+: errno ( -- a , Returns the value of the ERRNO variable )
+    _errno @ ;

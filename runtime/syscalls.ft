@@ -1,0 +1,158 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Forth words implementing each of the major Linux system calls, structured
+\ so that the _syscall is handed the right arguments.  For example, to exit
+\ from the program with status 42,
+
+\       42 _EXIT
+
+\ Format is:
+\ Function                                       Callnum
+\  |                                             |   Number of arguments
+\  |                                             |   |
+\  V                                             V   V
+: _exit                                ( a1 -- ) 1   1 _syscall _post_syscall ;
+: _fork                                 ( -- r ) 2   0 _syscall _post_syscall ;
+: _read                        ( a1 a2 a3 -- r ) 3   3 _syscall _post_syscall ;
+: _write                       ( a1 a2 a3 -- r ) 4   3 _syscall _post_syscall ;
+: _open                        ( a1 a2 a3 -- r ) 5   3 _syscall _post_syscall ;
+: _close                             ( a1 -- r ) 6   1 _syscall _post_syscall ;
+: _waitpid                     ( a1 a2 a3 -- r ) 7   3 _syscall _post_syscall ;
+: _creat                          ( a1 a2 -- r ) 8   2 _syscall _post_syscall ;
+: _link                           ( a1 a2 -- r ) 9   2 _syscall _post_syscall ;
+: _unlink                            ( a1 -- r ) 10  1 _syscall _post_syscall ;
+: _execve                      ( a1 a2 a3 -- r ) 11  3 _syscall _post_syscall ;
+: _chdir                             ( a1 -- r ) 12  1 _syscall _post_syscall ;
+: _time                              ( a1 -- r ) 13  1 _syscall _post_syscall ;
+: _mknod                       ( a1 a2 a3 -- r ) 14  3 _syscall _post_syscall ;
+: _chmod                          ( a1 a2 -- r ) 15  2 _syscall _post_syscall ;
+: _lchown16                    ( a1 a2 a3 -- r ) 16  3 _syscall _post_syscall ;
+: _lseek                       ( a1 a2 a3 -- r ) 19  3 _syscall _post_syscall ;
+: _getpid                               ( -- r ) 20  0 _syscall _post_syscall ;
+: _mount                 ( a1 a2 a3 a4 a5 -- r ) 21  5 _syscall _post_syscall ;
+: _setuid16                          ( a1 -- r ) 23  1 _syscall _post_syscall ;
+: _getuid16                             ( -- r ) 24  0 _syscall _post_syscall ;
+: _stime                             ( a1 -- r ) 25  1 _syscall _post_syscall ;
+: _alarm                             ( a1 -- r ) 27  1 _syscall _post_syscall ;
+: _pause                                ( -- r ) 29  0 _syscall _post_syscall ;
+: _utime                          ( a1 a2 -- r ) 30  2 _syscall _post_syscall ;
+: _access                         ( a1 a2 -- r ) 33  2 _syscall _post_syscall ;
+: _nice                              ( a1 -- r ) 34  1 _syscall _post_syscall ;
+: _kill                           ( a1 a2 -- r ) 37  2 _syscall _post_syscall ;
+: _rename                         ( a1 a2 -- r ) 38  2 _syscall _post_syscall ;
+: _mkdir                          ( a1 a2 -- r ) 39  2 _syscall _post_syscall ;
+: _rmdir                             ( a1 -- r ) 40  1 _syscall _post_syscall ;
+: _dup                               ( a1 -- r ) 41  1 _syscall _post_syscall ;
+: _pipe                              ( a1 -- r ) 42  1 _syscall _post_syscall ;
+: _times                             ( a1 -- r ) 43  1 _syscall _post_syscall ;
+: _brk                               ( a1 -- r ) 45  1 _syscall _post_syscall ;
+: _setgid16                          ( a1 -- r ) 46  1 _syscall _post_syscall ;
+: _getgid16                             ( -- r ) 47  0 _syscall _post_syscall ;
+: _signal                         ( a1 a2 -- r ) 48  2 _syscall _post_syscall ;
+: _geteuid16                            ( -- r ) 49  0 _syscall _post_syscall ;
+: _getegid16                            ( -- r ) 50  0 _syscall _post_syscall ;
+: _ioctl                       ( a1 a2 a3 -- r ) 54  3 _syscall _post_syscall ;
+: _fcntl                       ( a1 a2 a3 -- r ) 55  3 _syscall _post_syscall ;
+: _setpgid                        ( a1 a2 -- r ) 57  2 _syscall _post_syscall ;
+: _umask                             ( a1 -- r ) 60  1 _syscall _post_syscall ;
+: _chroot                            ( a1 -- r ) 61  1 _syscall _post_syscall ;
+: _dup2                           ( a1 a2 -- r ) 63  2 _syscall _post_syscall ;
+: _getppid                              ( -- r ) 64  0 _syscall _post_syscall ;
+: _getpgrp                              ( -- r ) 65  0 _syscall _post_syscall ;
+: _setsid                               ( -- r ) 66  0 _syscall _post_syscall ;
+: _setreuid16                     ( a1 a2 -- r ) 70  2 _syscall _post_syscall ;
+: _setregid16                     ( a1 a2 -- r ) 71  2 _syscall _post_syscall ;
+: _symlink                        ( a1 a2 -- r ) 83  2 _syscall _post_syscall ;
+: _readlink                    ( a1 a2 a3 -- r ) 85  3 _syscall _post_syscall ;
+: _readdir                           ( a1 -- r ) 89  1 _syscall _post_syscall ;
+: _munmap                         ( a1 a2 -- r ) 91  2 _syscall _post_syscall ;
+: _truncate                       ( a1 a2 -- r ) 92  2 _syscall _post_syscall ;
+: _ftruncate                      ( a1 a2 -- r ) 93  2 _syscall _post_syscall ;
+: _fchmod                         ( a1 a2 -- r ) 94  2 _syscall _post_syscall ;
+: _fchown16                    ( a1 a2 a3 -- r ) 95  3 _syscall _post_syscall ;
+: _getpriority                    ( a1 a2 -- r ) 96  2 _syscall _post_syscall ;
+: _setpriority                 ( a1 a2 a3 -- r ) 97  3 _syscall _post_syscall ;
+: _socketcall                        ( a1 -- r ) 102 1 _syscall _post_syscall ;
+: _syslog                      ( a1 a2 a3 -- r ) 103 3 _syscall _post_syscall ;
+: _setitimer                   ( a1 a2 a3 -- r ) 104 3 _syscall _post_syscall ;
+: _getitimer                      ( a1 a2 -- r ) 105 2 _syscall _post_syscall ;
+: _stat                           ( a1 a2 -- r ) 106 2 _syscall _post_syscall ;
+: _lstat                          ( a1 a2 -- r ) 107 2 _syscall _post_syscall ;
+: _fstat                          ( a1 a2 -- r ) 108 2 _syscall _post_syscall ;
+: _uname                             ( a1 -- r ) 109 1 _syscall _post_syscall ;
+: _wait4                    ( a1 a2 a3 a4 -- r ) 114 4 _syscall _post_syscall ;
+: _sysinfo                           ( a1 -- r ) 116 1 _syscall _post_syscall ;
+: _ipc                               ( a1 -- r ) 117 1 _syscall _post_syscall ;
+: _fsync                             ( a1 -- r ) 118 1 _syscall _post_syscall ;
+: _clone                          ( a1 a2 -- r ) 120 2 _syscall _post_syscall ;
+: _new_uname                         ( a1 -- r ) 122 1 _syscall _post_syscall ;
+: _getpgid                           ( a1 -- r ) 132 1 _syscall _post_syscall ;
+: _fchdir                            ( a1 -- r ) 133 1 _syscall _post_syscall ;
+: _personality                       ( a1 -- r ) 136 1 _syscall _post_syscall ;
+: _setfsuid                          ( a1 -- r ) 138 1 _syscall _post_syscall ;
+: _setfsgid                          ( a1 -- r ) 139 1 _syscall _post_syscall ;
+: _llseek                ( a1 a2 a3 a4 a5 -- r ) 140 5 _syscall _post_syscall ;
+: _getdents                    ( a1 a2 a3 -- r ) 141 3 _syscall _post_syscall ;
+: _select                ( a1 a2 a3 a4 a5 -- r ) 142 5 _syscall _post_syscall ;
+: _flock                          ( a1 a2 -- r ) 143 2 _syscall _post_syscall ;
+: _msync                       ( a1 a2 a3 -- r ) 144 3 _syscall _post_syscall ;
+: _readv                       ( a1 a2 a3 -- r ) 145 3 _syscall _post_syscall ;
+: _writev                      ( a1 a2 a3 -- r ) 146 3 _syscall _post_syscall ;
+: _nanosleep                      ( a1 a2 -- r ) 162 2 _syscall _post_syscall ;
+: _mremap                   ( a1 a2 a3 a4 -- r ) 163 4 _syscall _post_syscall ;
+: _setresuid16                 ( a1 a2 a3 -- r ) 164 3 _syscall _post_syscall ;
+: _getresuid16                 ( a1 a2 a3 -- r ) 165 3 _syscall _post_syscall ;
+: _poll                        ( a1 a2 a3 -- r ) 168 3 _syscall _post_syscall ;
+: _setresgid16                 ( a1 a2 a3 -- r ) 170 3 _syscall _post_syscall ;
+: _getresgid16                 ( a1 a2 a3 -- r ) 171 3 _syscall _post_syscall ;
+: _sigret                               ( -- r ) 173 0 _syscall _post_syscall ;
+: _sigaction                   ( a1 a2 a3 -- r ) 174 3 _syscall _post_syscall ;
+: _sigprocmask              ( a1 a2 a3 a4 -- r ) 175 4 _syscall _post_syscall ;
+: _sigpending                        ( a1 -- r ) 176 1 _syscall _post_syscall ;
+: _sigtimedwait             ( a1 a2 a3 a4 -- r ) 177 4 _syscall _post_syscall ;
+: _sigqueueinfo                ( a1 a2 a3 -- r ) 178 3 _syscall _post_syscall ;
+: _sigsuspend                     ( a1 a2 -- r ) 179 2 _syscall _post_syscall ;
+: _pread                    ( a1 a2 a3 a4 -- r ) 180 4 _syscall _post_syscall ;
+: _pwrite                   ( a1 a2 a3 a4 -- r ) 181 4 _syscall _post_syscall ;
+: _chown16                     ( a1 a2 a3 -- r ) 182 3 _syscall _post_syscall ;
+: _getcwd                         ( a1 a2 -- r ) 183 2 _syscall _post_syscall ;
+: _sigaltstack                          ( -- r ) 186 0 _syscall _post_syscall ;
+: _sendfile                 ( a1 a2 a3 a4 -- r ) 187 4 _syscall _post_syscall ;
+: _vfork                                ( -- r ) 190 0 _syscall _post_syscall ;
+: _getrlimit                      ( a1 a2 -- r ) 191 2 _syscall _post_syscall ;
+: _mmap2              ( a1 a2 a3 a4 a5 a6 -- r ) 192 6 _syscall _post_syscall ;
+: _lchown                      ( a1 a2 a3 -- r ) 198 3 _syscall _post_syscall ;
+: _getuid                               ( -- r ) 199 0 _syscall _post_syscall ;
+: _getgid                               ( -- r ) 200 0 _syscall _post_syscall ;
+: _geteuid                              ( -- r ) 201 0 _syscall _post_syscall ;
+: _getegid                              ( -- r ) 202 0 _syscall _post_syscall ;
+: _setreuid                       ( a1 a2 -- r ) 203 2 _syscall _post_syscall ;
+: _setregid                       ( a1 a2 -- r ) 204 2 _syscall _post_syscall ;
+: _getgroups                      ( a1 a2 -- r ) 205 2 _syscall _post_syscall ;
+: _setgroups                      ( a1 a2 -- r ) 206 2 _syscall _post_syscall ;
+: _fchown                      ( a1 a2 a3 -- r ) 207 3 _syscall _post_syscall ;
+: _setresuid                   ( a1 a2 a3 -- r ) 208 3 _syscall _post_syscall ;
+: _getresuid                   ( a1 a2 a3 -- r ) 209 3 _syscall _post_syscall ;
+: _setresgid                   ( a1 a2 a3 -- r ) 210 3 _syscall _post_syscall ;
+: _getresgid                   ( a1 a2 a3 -- r ) 211 3 _syscall _post_syscall ;
+: _chown                       ( a1 a2 a3 -- r ) 212 3 _syscall _post_syscall ;
+: _setuid                            ( a1 -- r ) 213 1 _syscall _post_syscall ;
+: _setgid                            ( a1 -- r ) 214 1 _syscall _post_syscall ;

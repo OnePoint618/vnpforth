@@ -1,0 +1,104 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ General Forth compatibility variables and functions.
+
+\ The following variables have names that are known to the compiler.  It
+\ emits code at the start of a Forth main function to populate them.  If
+\ main is not from Forth then they remain null.  The access words below them
+\ are convenience calls for user programs.
+
+( nodoc ) variable _argc                ( Command line arguments count )
+( nodoc ) variable _argv                ( Pointer to command line arguments )
+( nodoc ) variable _envp                ( Pointer to the process environment )
+
+: argc ( -- n , Returns a count of command line arguments )
+    _argc @ ;
+
+: argv ( -- a , The process arguments, an array of C-style strings )
+    _argv @ ;
+
+: envp ( -- a , The process environment, an array of C-style strings )
+    _envp @ ;
+
+: arg ( n -- a n | X 0 , Returns command line argument at n, X 0 if none )
+    dup 0 argc within if
+        cells argv + @ strlen
+    else drop s" " drop 0 then ;        \ on error, X is ""
+
+
+\ This module tries to conform to DPANS with respect to ABORT".  On ABORT"
+\ the compiler calls _abortquote.  This prints the associated string only if
+\ there is no exception handler set, then throws exception -2.
+
+( nodoc ) : _type ( a u -- , Compiler entry point for TYPE )
+    type ;
+
+( nodoc ) : _abortquote ( a u -- , Abort, printing string if no eh set )
+    _getehhandler if 2drop else type then
+    -2 throw ;
+
+: _abort ( -- ) ( R: -- , Abort the program with core dump, uncatchable )
+    6 ( sigabrt )
+    20 ( getpid ) 0 ( nargs ) _syscall ( pid )
+    37 ( kill ) 2 ( nargs ) _syscall ( NOT REACHED ) ;
+
+: abort ( -- ) ( R: -- , Abort the program with core dump, catchable )
+    -1 throw ;
+
+: _quit ( -- ) ( R: -- , Exit the program, uncatchable )
+    0 ( status ) 1 ( exit ) 1 ( nargs ) _syscall ( NOT REACHED ) ;
+
+: quit ( -- ) ( R: -- , Exit the program, catchable )
+    -56 throw ;
+
+create pad 84 chars allot               ( PAD transient region, 84 chars )
+
+variable _state                         ( Underlying variable for STATE )
+
+: state ( -- a-addr , Return address of STATE )
+    _state ;
+
+: [         ( -- , Null definition for compatibility ) ;
+: ]         ( -- , Null definition for compatibility ) ;
+: literal   ( -- , Null definition for compatibility ) ;
+: immediate ( -- , Null definition for compatibility ) ;
+
+\ HERE is faked.  Real Forth systems set it automatically to the address of
+\ the most recent declared data area.  We can't do that.  To use it, a caller
+\ must declare the data and then explicitly store its address in _HERE.
+\ Sorry about the ugliness.
+
+variable _here                          ( Underlying variable for HERE )
+
+: here ( -- addr , Return address of the current HERE region )
+    _here @ ;
+
+: , ( x -- , Store x in the current HERE region )
+    here ! _here @ cell+ _here ! ;
+
+: c, ( c -- , Store c in the current HERE region )
+    here c! _here @ char+ _here ! ;
+
+: align ( -- , Align the current HERE data space pointer )
+    _here @ aligned _here ! ;           \ align the index
+
+: unused ( -- u , Null definition, for compatibility )
+    0 invert 1 rshift ;                 \ essentially unlimited

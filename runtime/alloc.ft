@@ -1,0 +1,198 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Memory allocation.
+
+\ The allocation arena is grown by brk().  The arena is split into blocks.
+\ Blocks have a single cell header that indicates their size.  Size is
+\ signed, and -ve values indicate free blocks.  A zero-size header indicates
+\ the end of the list.  A block is free'd by negating its size.  Traverse
+\ by reading a size then reading forwards abs(size) bytes to the next header.
+
+\ Addresses returned to the caller are one after the header, so to find a
+\ block size from an allocated address back up one cell and fetch.  Addresses
+\ are aligned on cell boundaries, and requests for non-aligned sizes are
+\ rounded up to a integral number of cells.  Requests for zero bytes are
+\ converted to four bytes so that the address returned is valid for free
+\ or resize.
+
+\ Allocate and resize reject attempts to allocate negative sizes.  Resize
+\ and free try to reject non-arena addresses and already resized or free'd
+\ addresses, but are not foolproof.  Invalid arguments return EINVAL.
+
+\ The arena is grown but never shrunk, so memory is not released back to
+\ the kernel.  On brk() error, raises -2048 out of memory exception and
+\ does not return to the caller.
+
+\ The arena address is in _arenap, initially zero and set up as an empty
+\ arena (single cell 0 allocation) on first access by _arena.  It should
+\ always be accessed through _arena.
+
+\ The implementation is not efficient.  It is prone to fragmentation, and
+\ uses a linear search to find a storage block, stopping at the first free
+\ block with enough capacity for the new allocation.
+
+variable _arenap                        ( Pointer to the allocation arena )
+( nodoc ) variable _(bcache)            ( Cached current brk value, for speed )
+
+: _allocb ( addr1 -- addr2 , Change data segment, abort on failure )
+    dup ( addr1 ) 45 ( brk ) 1 ( nargs ) _syscall
+    dup _(bcache) !                     \ cache latest brk value
+    swap over > if -2048 throw then ;   \ exception if addr1 > brk
+
+: _arena ( -- addr , Return the address of the allocation arena )
+    _arenap @ 0= if
+        0 _allocb _arenap !             \ set _arenap to the initial brk
+        0 _arenap @ cell+ _allocb !     \ allocate one arena cell, set to 0
+    then
+    _arenap @ ;
+
+: _allocsize ( addr -- n|0 , Get the size of the block for addr, 0 on error)
+    aligned dup
+    _arena cell+ _(bcache) @ 1+ within
+    if                                  \ does addr look allocated?
+        1 cells - @                     \ get size
+        dup 0< if
+            drop 0                      \ if size <0 block has been free'd
+        then
+    else drop 0 then ;
+
+: _.arena ( -- , Print the allocation arena )
+    base @ >r hex                       \ save base, set hex
+
+    ." Arena: " _arena . _(bcache) @ .  \ arena start and end addresses
+    ." :" cr
+
+    _arena begin
+        dup @                           \ get the size of the current block
+        dup 0<> while                   \ stop on zero-length sentinel
+        over 8 u.r space                \ print block address
+        base @ decimal
+        over abs 4 u.r                  \ print block size, in decimal
+        base !
+        dup 0> if ."  used: "
+               else ."  free: " then
+        abs
+        2dup over + swap do             \ print block contents, as bytes
+            i cell+ c@ .
+        loop cr
+        cell+ +                         \ add last length to get the next block
+    repeat
+    drop 8 u.r space ."  end" cr
+
+    r> base ! ;                         \ restore base
+
+: _allocdefrag ( addr -- , Coalesce adjacent free blocks into this block )
+    begin
+        dup @ 0< while                  \ get current size, stop if not free
+
+        dup @ abs cell+ over +          \ get address of next
+        dup @ 0< invert
+        if 2drop exit then              \ done if next block is not also free
+
+        @ over @                        \ get the -ve size from next and current
+        1 cells -                       \ adjust for the header we're losing
+        + over !                        \ combine -ve sizes, write to current
+    repeat drop ;
+
+: _allocslot ( n addr1 -- n addr2 , Locate a block to hold n bytes )
+    begin
+        dup _allocdefrag                \ defragment this block if possible
+        dup @                           \ retrieve the block length
+        dup 0= if drop exit then        \ 0-length header is end of list
+        dup 0< if                       \ length < 0 is a free block
+            negate                      \ convert length to positive
+            dup 3 pick -                \ compare against the requested size
+            dup 0= if 2drop exit then   \ block matches request exactly
+            2 cells < invert if drop exit then
+                                        \ block is > 2 cells over request
+        then
+        cell+ +                         \ add last length to get the next block
+    again ;
+
+: allocate ( n -- addr 0 | code , Allocate n bytes, return addr and 0 or errno )
+    dup 0< if drop 0 _einval exit then  \ invalid if request <0 bytes
+    dup 0= if cell+ then                \ if 0 requested, make up to 1 cell
+
+    aligned                             \ round request up to cell size
+    _arena _allocslot                   \ search the arena for a suitable slot
+
+    dup @ 0= if                         \ is this a new allocation?
+        2dup !                          \ save block size in header cell
+        2dup + 2 cells + _allocb        \ extend the arena, extra is headers
+        1 cells - 0 swap !              \ write 0 sentinel at block end
+        nip cell+ 0 exit                \ return new address, success
+    then
+
+    2dup @ swap negate = if             \ is this a directly reusable block?
+        2dup !                          \ write block size to header cell
+        nip cell+ 0 exit                \ return reused address, success
+    then
+                                        \ this is a split of an unused block
+    dup >r dup @ >r                     \ save addr and old negative size
+    2dup !                              \ write new block size to header cell
+    dup @ + cell+                       \ move to next
+    swap r> cell+ + swap !              \ write remainder header
+    r> cell+ 0 ;                        \ return split address, success
+
+: free ( addr -- 0 | code , Free memory at addr, return 0 or errno )
+    dup _allocsize 0= if
+        drop _einval exit then          \ einval if addr is not in the arena
+
+    aligned
+    1 cells -                           \ back up one cell
+    dup @ negate swap ! 0 ;             \ negate the value, success
+
+: resize ( addr1 n -- addr2 0 | code , Resize, return new addr and 0 or errno )
+    dup 0< if 2drop 0 _einval exit then \ invalid if request <0 bytes
+    dup 0= if cell+ then                \ if 0 requested, make up to 1 cell
+
+    over _allocsize 0= if
+        2drop 0 _einval exit then       \ einval if addr is not in the arena
+
+    aligned swap aligned swap           \ round request up to cell size, align
+    over >r                             \ save current address
+    over 1 cells - @ >r                 \ get the current block size, save
+
+    dup r@ > if                         \ increasing size, need to relocate
+        allocate dup 0<> if             \ allocate a new area
+            2rdrop >r drop 0 r>         \ if allocation fails pass on code
+            exit
+        then drop                       \ now have ( addr1 new-addr )
+
+        over 1 cells -                  \ get header for addr1, ready to free
+        dup @ negate swap !             \ negate the value to free
+
+        r> swap dup >r                  \ retrieve old size, save new-addr
+        swap move                       \ copy data from addr1 to new-addr
+        r>                              \ retrieve new-addr
+
+        rdrop 0 exit                    \ return stack cleanup, success
+    then
+
+    dup r@ swap -                       \ check for size reduction
+    2 cells < if                        \ same size or <2 cells smaller, ignore
+        2rdrop drop 0 exit then
+                                        \ block is smaller, split it
+    swap 1 cells -                      \ back up to block header
+    2dup !                              \ write new block size to header cell
+    dup @ + cell+                       \ move to next
+    swap r> negate cell+ + swap !       \ write remainder header
+    r> 0 ;                              \ return split address, success

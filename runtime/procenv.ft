@@ -1,0 +1,58 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Helper routine and functional equivalent to 'C' getenv().  Scan the
+\ environment for a matching definition.
+
+( nodoc ) : _(envstr=) ( c-addr1 u1 env-addr -- flag , Compare env LHS string )
+    2dup + c@ char = = invert if        \ check char at env-addr + u1
+        2drop drop false exit           \ if char is not '=' then false
+    then
+    swap 0 ?do                          \ loop for each character
+        over i + c@                     \ get char from c-addr1 + I
+        dup char = = if                 \ trap odd case of '=' in mid-string
+            2drop drop unloop false exit
+        then
+        over i + c@ = invert if         \ get char from env-addr + I
+            2drop unloop false exit     \ if chars not equal then false
+        then
+    loop
+    2drop true ;
+
+: getenv ( c-addr u -- false | c-addr u true , Get process env variable value )
+    envp                                \ get the top of environ
+    begin                               \ scan the complete environment
+        dup @                           \ get the next environ string
+        dup 0= if                       \ see if this is the array end
+            2drop 2drop false exit      \ if at end then false
+        then
+        swap >r                         \ save current envp to return stack
+        >r 2dup r> _(envstr=)           \ compare variables
+        r> swap                         \ restore current envp
+        if
+            rot rot 2drop @             \ matched - drop stuff, and refind addr
+            begin
+                dup c@ char = = invert while
+                char+                   \ loop until '=' found
+            repeat
+            char+ strlen true exit      \ push string length, return true
+        then
+        cell+                           \ move to next cell
+    again ;

@@ -1,0 +1,150 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ The code in this and other runtime library functions needs to be compiled
+\ with -fPIC, because it relies on the compiler having pre-loaded register
+\ %ebx with the global table offset data, and this only happens with the
+\ -fPIC option.  Without -fPIC, %ebx contains random data that will crash
+\ the program when used as a global table offset.
+
+\ To guard against this, the module uses a small trick.  Inside each CODE
+\ word is a reference to an assembler temporary label "0:".  On compiling
+\ with -fPIC, the compiler inserts a "0:" label at the top of each function
+\ definition; without -fPIC, it does not.  So if the module is compiled
+\ without -fPIC, the label reference "0b" (backwards to "0:") fails to
+\ assemble.  The message is a cryptic one from the assembler, but it is
+\ enough to prevent compilation without -fPIC.  Modules using this feature
+\ should refrain from defining "0:" itself.
+
+\ This trick is repeated in the other runtime library modules containing
+\ CODE definitions.
+
+
+\ Stack overflow and underflow raise exceptions, and need a working stack
+\ for their handlers.  This presents a problem.  To solve it, stacks are
+\ in reality slightly larger than their user-visible portion.  Callers
+\ reserve a few cells at the end of the stack, and pass our push and pop
+\ functions a stack size that excludes this exception handling space.
+
+\ If _stackeh is set, push will not check stack bounds.  Pop will always
+\ check the lower bound, because exception handling may overflow the user
+\ visible stack, but should never underflow.  On a stack bounds error push
+\ sets _stackeh before raising the exception.  THROW can also set _stackeh.
+\ A call to _clrstackeh at the end of exception handling turns stack
+\ overflow checking back on.  The runtime does not therefore detect a hard
+\ stack overflow problem arising in exception handling code.
+
+( nodoc ) variable _stackeh             ( True if handling a stack exception )
+
+( nodoc ) : _setstackeh ( -- , Set stack exception handling flag )
+    true _stackeh ! ;
+
+( nodoc ) : _clrstackeh ( -- , Clear stack exception handling flag )
+    false _stackeh ! ;
+
+
+\ Stack exception.
+
+\ If not already handing a stack exception, set the stack exception flag and
+\ raise the exception indicated in edx, no return.  Otherwise, return.
+\ If it returns, this function will preserve all registers.  Called by push
+\ only, to relax overflow checks during exception handling.  Underflow checks
+\ in pop are never relaxed.
+\ The function takes arguments from registers, and does not conform to the
+\ Intel ABI standard.
+\ _starteh: input  edx, exception code
+\           output none
+
+( nodoc ) code _starteh ( -- , Raise %edx and set _stackeh, or return )
+    mov v4__stackeh@GOT(%ebx),%esi
+    mov (%esi),%edi                     \ retrieve stack exception flag
+    test %edi,%edi                      \ check the flag
+    jnz 1f                              \ if not already a stack exception then
+
+    movl $-1,(%esi)                     \   set stack exception flag to true
+    mov %edx,%eax                       \   eax = exception code
+    call v4__dpush@PLT                  \   push exception code
+    call v4_throw@PLT                   \   raise stack exception
+                                        \   NOT REACHED
+1:                                      \ endif
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+
+\ Generic push function for a Forth stack.
+
+\ On overflow, the function will raise the exception indicated in edx.
+\ On successful push, this function will and must preserve all registers.
+\ The function takes arguments from registers, and does not conform to the
+\ Intel ABI standard.
+\ _push: input  eax, value to push
+\               ecx, stack size
+\               edi, address of stack
+\               esi, address of stack index
+\               edx, exception code
+\        output eax, unchanged, value pushed
+
+( nodoc ) code _push ( -- w , Push value in %eax onto the given stack )
+    cmp %ecx,(%esi)
+    jb 1f                               \ if SP >= size then
+    call v4__starteh@PLT                \   maybe raise exception edx
+1:                                      \ endif
+
+    push %esi                           \ save esi
+    mov (%esi),%esi                     \ esi = SP
+    mov %eax,(%edi,%esi,4)              \ edi[esi] = eax
+    pop %esi                            \ restore esi
+    incl (%esi)                         \ SP++
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+
+\ Generic pop function for a Forth data stack.
+
+\ On underflow, the function will raise the exception indicated in edx.
+\ On successful pop, this function will and must preserve all registers,
+\ except eax, which returns the result.
+\ The function takes arguments from registers, and does not conform to the
+\ Intel ABI standard.
+\ _pop: input  edi, address of stack
+\              esi, address of stack index
+\              edx, exception code
+\       output eax, value popped
+
+( nodoc ) code _pop ( w -- , Pop value from the given stack into %eax )
+    cmp $0,(%esi)
+    ja 1f                               \ if sptr <= 0 then
+
+    mov %edx,%eax                       \   eax = exception code
+    call v4__dpush@PLT                  \   push exception code
+    call v4_throw@PLT                   \   raise stack exception
+                                        \   NOT REACHED
+1:                                      \ endif
+
+    decl (%esi)                         \ SP--
+    mov (%esi),%esi                     \ esi = SP
+    mov (%edi,%esi,4),%eax              \ eax = edi[esi]
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code

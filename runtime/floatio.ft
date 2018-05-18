@@ -1,0 +1,324 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Selected floating point I/O functions.
+
+\ For ease of implementation REPRESENT scales numbers before converting.
+\ This scaling may lose or change some of the lowest significance digits.
+\ Also affects F., FS. and FE.
+
+\ Uses lowercase for exponent except if _strictansi.
+
+variable _precision                     ( Underlying precision variable )
+create _fsbuf 8 chars allot             ( Float conversion buffer, 8 chars )
+
+: precision ( -- u , Initialize PRECISION to 8 if not yet set, return value )
+    _precision @ 0= if                  \ see if PRECISION is zero
+        8 _precision !                  \ set to 8
+    then _precision @ ;                 \ leave PRECISION value on the stack
+
+: set-precision ( u -- , Set PRECISION, limits at 1 and 8 )
+    1 max 8 min _precision ! ;
+
+( nodoc ) : _(represent?) ( -- code , Enumerate float special cases )
+    fdup f>
+    dup 511 23 lshift = if drop 1 exit then              \ -infinity?
+    dup 255 23 lshift = if drop 2 exit then              \ +infinity?
+    dup 511 23 lshift dup rot and = if drop 3 exit then  \ -nan?
+    dup 255 23 lshift dup rot and = if drop 4 exit then  \ +nan?
+    drop 0 ;
+
+: represent ( c-addr u -- exp neg valid ) ( F: r -- , Represent r as u chars )
+    2dup char 0 fill                    \ initial fill c-addr with u '0's
+
+    _(represent?) dup 0> if             \ check for special values
+        >r 2drop fdrop r>
+        case
+        1 of 1 true 0 endof 2 of 1 false 0 endof  \ -/+infinity
+        3 of 0 true 0 endof 4 of 0 false 0 endof  \ -/+nan
+        endcase 2>r drop 2r> false exit \ return invalid result
+    then drop
+
+    fdup f0= if                         \ +/-0.0 is a special case
+        2drop 1 f> 31 rshift 0= invert  \ exp = 1, neg = float sign, for -0.0
+        true exit
+    then
+
+    fdup f0< fabs                       \ push sign and make r always +ve
+
+    0                                   \ start exponent count at zero
+    begin                               \ scale for > 1.0
+        fdup 1.0 f< invert while
+        1+ 10.0 f/                      \ increment exp, r /= 10.0
+    repeat
+    begin                               \ scale for < 0.1
+        fdup 0.1 f< while
+        1- 10.0 f*                      \ decrement exp, r *= 10.0
+    repeat
+    2>r                                 \ temporarily save exp and sign
+
+    dup 0= if                           \ if u is zero digits we're done
+        2drop fdrop                     \ drop c-addr, u, and r
+        2r> swap true exit              \ return exp, sign and result valid
+    then
+
+    dup 0 do 10.0 f* loop fround        \ scale up u places and round
+    dup 0 do 10.0 f/ loop               \ scale back down
+
+    fdup 1.0 f< invert if               \ check for possible rounding overflow
+        r> 1+ >r 10.0 f/                \ increment exp, r /= 10.0
+    then
+
+    f>                                  \ retrieve r in raw form
+    dup 23 rshift 255 and 127 - >r      \ exponent, to return stack
+    1 23 lshift 1- and 1 23 lshift or   \ mantissa
+    1 23 r@ - lshift 1- and             \ frac = man & ((1 << (23 - exp)) - 1)
+    1 23 r> - lshift                    \ base = 1 << (23 - exp)
+
+    swap                                \ swap to get frac, base
+    rot 0 do                            \ loop for 0 to u significant digits
+        dup 0= if leave then
+        10 *
+        2dup swap / char 0 + 3 pick c!
+        over mod
+        2>r 1+ 2r>                      \ increment c-addr
+    loop 2drop
+
+    drop 2r> swap                       \ drop c-addr, retrieve exp and sign
+    true ;                              \ return valid result
+
+( nodoc ) : _(represent) ( -- exp neg t | f ) ( F: r -- , REPRESENT wrapper )
+    _fsbuf precision represent          \ convert to digits, get flags
+    dup if exit then                    \ if valid return -- exp neg true
+
+    rot rot                             \ tuck false under exp neg
+    if ." -" else ." +" then            \ print +/-
+    0= if ." NaN " else ." Inf " then ; \ print NaN/Inf, return -- false
+
+( nodoc ) : _(printexp) ( exp -- , Print exponent in {e|E}[-][N]N format )
+    _strictansi @
+    if ." E" else ." e" then            \ print 'e' (or 'E' if strictansi)
+
+    base @ >r 10 base !                 \ save base, force to 10
+    0 .r                                \ print as simple signed decimal
+    r> base ! ;                         \ restore base
+
+: fs. ( F: r -- , Print r in scientific notation )
+    _(represent) invert if exit then    \ convert to digits, handle invalid
+    if ." -" then                       \ print '-' if negative
+
+    _fsbuf 1 type ." ."                 \ print "N."
+    _fsbuf 1+ precision 1- type         \ print remaining significant digits
+
+    1-                                  \ decrement exp for "N." format
+    _(printexp) space ;                 \ print exp and trailing space
+
+: fe. ( F: r -- , Print r in engineering notation )
+    _(represent) invert if exit then    \ convert to digits, handle invalid
+    if ." -" then                       \ print '-' if negative
+
+    dup 41 +                            \ translate exp to a +ve only range
+    3 mod 1+                            \ mod 3 + 1 is pre-dp digits (1 to 3)
+
+    _fsbuf precision + 8 precision -    \ find tail of _fsbuf unused by repr
+    char 0 fill                         \ pad with '0'
+
+    _fsbuf over type ." ."              \ print "N[N[N]]."
+    _fsbuf over +                       \ get addr of unprinted part of _fsbuf
+    precision 2 pick -                  \ get length of unprinted part
+    dup 0> if type else 2drop then      \ print unprinted but still needed
+
+    -                                   \ adjust exp for the dp position used
+    _(printexp) space ;                 \ print exp and trailing space
+
+( nodoc ) : _(precision) ( -- u , Return PRECISION less _FSBUF trailing '0's )
+    _fsbuf precision
+    begin
+        2dup + 1- c@                    \ get the char at _fsbuf + u - 1
+        char 0 = over 1 > and while     \ done if not '0' or u is 1
+    1- repeat                           \ decrement return value, loop
+    nip ;                               \ nip _fsbuf
+
+: f. ( F: r -- , Print r in fixed point notation )
+    _(represent) invert if exit then    \ convert to digits, handle invalid
+    if ." -" then                       \ print '-' if negative
+
+    dup 0> if                           \ check for +ve non-zero exponent
+        _(precision) 0 do
+            _fsbuf i + c@ emit          \ print the digit as _fsbuf[i]
+            1- dup 0= if ." ." then     \ decr exponent, print '.' where needed
+        loop
+        dup 0> if                       \ any more exponent?
+            0 do ." 0" loop             \ print any needed trailing zeroes
+            ." ."                       \ always finish with a '.'
+        else drop then
+    else
+        ." 0."
+        negate 0 ?do ." 0" loop         \ print leading zeroes
+        _fsbuf _(precision) type        \ print digits in _fsbuf
+    then space ;
+
+( nodoc ) variable _(fsign)             ( Sign of converted float, true=-ve)
+( nodoc ) fvariable _(fint)             ( Integer part of converted float )
+( nodoc ) fvariable _(ffrac)            ( Fractional part of converted float )
+( nodoc ) variable _(ffrac_scale)       ( Fractional part scaling factor )
+( nodoc ) variable _(fexp)              ( Exponent of converted float )
+( nodoc ) variable _(fexp_sign)         ( Sign of exponent, true=-ve )
+
+( nodoc ) : _(convinit) ( -- , Initialize conversion variables )
+    0 0 _(ffrac_scale) ! _(fexp) !
+    false false _(fsign) ! _(fexp_sign) !
+    0.0 0.0 _(fint) f! _(ffrac) f! ;
+
+( nodoc ) : _(ctof) ( c x -- c x ) ( F: -- r , Convert ord char c to float r )
+    over char 0 - case
+    0 of 0.0 endof 1 of 1.0 endof 2 of 2.0 endof 3 of 3.0 endof 4 of 4.0 endof
+    5 of 5.0 endof 6 of 6.0 endof 7 of 7.0 endof 8 of 8.0 endof 9 of 9.0 endof
+    endcase ;
+
+( nodoc ) : _(combine) ( F: -- r , Combine conversion vars into a result )
+    _(ffrac) f@ _(ffrac_scale) @        \ retrieve the fractional and its scale
+    0 ?do 10.0 f/ loop                  \ scale fractional by digits read
+
+    _(fint) f@ f+                       \ combine integer and fractional
+
+    _(fexp_sign) @ _(fexp) @            \ retrieve the exp sign and exp value
+    1024 min                            \ limit exp to a reasonable value >38
+    swap if negate then                 \ negate exponent if sign is -ve
+
+    dup 0> if                           \ scale result by (limited) exponent
+        0 do 10.0 f* loop               \ limit avoids extreme loop here...
+    else
+        negate 0 ?do 10.0 f/ loop       \ ...and here
+    then
+
+    _(fsign) @                          \ retrieve the result sign
+    if fnegate then ;                   \ negate the result if sign is -ve
+
+: >float ( c-addr u -- true | false ) ( F: -- r | , Convert string to float )
+    2dup -trailing nip 0= if            \ if all blanks treat as 0.0, special
+        2drop 0.0 true exit
+    then
+
+    _(convinit)                         \ initialize conversion variables
+
+    \ Float DFA parser state transitions:
+    \         0 +1 +2  3 +4  5 +6   initial state=0, +=accepting state
+    \  [+-]   0  e  e  e  e  5  e
+    \  [eE]   e  5  5  e  5  e  e
+    \  '.'    3  2  e  e  e  e  e
+    \  [0-9]  1  1  4  4  4  6  6
+    \  other  e  e  e  e  e  e  e   e=error state, represented by -1
+
+    0 swap                              \ initial state 0
+    0 ?do
+        over i + c@                     \ get next character
+        swap case                       \ switch on state
+        0 of                            \ state: in +/- intro
+            over char - = >r over char + = r> or if
+                over char - = if _(fsign) dup @ invert swap ! then
+                0 swap                  \ -> state 0
+
+            else over char . = if
+                3 swap                  \ -> state 3
+
+            else over char 0 char 9 1+ within if
+                _(ctof) _(fint) f!      \ store digit as initial integral
+                1 swap                  \ -> state 1
+
+            else -1 swap then then then \ -> error
+        endof
+        1 of                            \ state: in significand integral
+            over char e = >r over char E = r> or if
+                5 swap                  \ -> state 5
+
+            else over char . = if
+                2 swap                  \ -> state 2
+
+            else over char 0 char 9 1+ within if
+                _(fint) f@              \ retrieve integer part
+                10.0 f* _(ctof) f+      \ scale up by 10, add next digit
+                _(fint) f!              \ store back integer part
+                1 swap                  \ -> state 1
+
+            else -1 swap then then then \ -> error
+        endof
+        2 of                            \ state: after dp with integral
+            over char e = >r over char E = r> or if
+                5 swap                  \ -> state 5
+
+            else over char 0 char 9 1+ within if
+                _(ctof) _(ffrac) f!     \ store digit as initial fractional
+                1 _(ffrac_scale) !      \ one fractional digit so far
+                4 swap                  \ -> state 4
+
+            else -1 swap then then      \ -> error
+        endof
+        3 of                            \ state: after dp no integral
+            over char 0 char 9 1+ within if
+                _(ctof) _(ffrac) f!     \ store digit as initial fractional
+                1 _(ffrac_scale) !      \ one fractional digit so far
+                4 swap                  \ -> state 4
+
+            else -1 swap then           \ -> error
+        endof
+        4 of                            \ state: in significand fractional
+            over char e = >r over char E = r> or if
+                5 swap                  \ -> state 5
+
+            else over char 0 char 9 1+ within if
+                _(ffrac) f@             \ retrieve fractional part
+                10.0 f* _(ctof) f+      \ scale up by 10, add next digit
+                _(ffrac) f!             \ store back integer part
+                _(ffrac_scale) dup @ 1+ swap !
+                4 swap                  \ -> state 4
+
+            else -1 swap then then      \ -> error
+        endof
+        5 of                            \ state: in exponent +/- intro
+            over char - = >r over char + = r> or if
+                over char - = if _(fexp_sign) dup @ invert swap ! then
+                5 swap                  \ -> state 5
+
+            else over char 0 char 9 1+ within if
+                over char 0 - _(fexp) ! \ store digit as initial exponent
+                6 swap                  \ -> state 6
+
+            else -1 swap then then      \ -> error
+        endof
+        6 of                            \ state: in exponent
+            over char 0 char 9 1+ within if
+                over char 0 - _(fexp) @ \ retrieve exponent
+                10 * + _(fexp) !        \ scale up by 10, add digit, store
+                6 swap                  \ -> state 6
+
+            else -1 swap then           \ -> error
+        endof
+        endcase nip                     \ done with this character
+        dup 0< if                       \ state: error
+            2drop false unloop exit     \ non-numeric, error
+        then
+    loop
+
+    nip                                 \ drop c-addr
+    dup 1 = over 2 = or over 4 = or swap 6 = or
+    invert if false exit then           \ invalid if not state 1, 2, 4, or 6
+
+    _(combine) true ;                   \ combine variables, success

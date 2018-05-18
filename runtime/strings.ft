@@ -1,0 +1,106 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ String functions.
+
+: -trailing ( c-addr u1 -- c-addr u2 , Remove trailing spaces )
+    begin
+        2dup + 1- c@                    \ get the char at addr + u
+        bl = while                      \ done if not space
+    1- repeat ;                         \ decrement, and loop
+
+: /string ( c-addr1 u1 n -- c-addr2 u2, Adjust c-addr1 by n characters )
+    swap >r dup >r + 2r> - ;
+
+: blank ( c-addr u -- , Store space in u chars beginning at c-addr )
+    bl fill ;
+
+: cmove ( c-addr1 c-addr2 u -- , Copy u chars from c-addr1 to c-addr2 )
+    dup 0> if                           \ do nothing if u <= 0
+        0 do
+            over i + c@                 \ retrieve c-addr1 + I
+            over i + c!                 \ store c-addr2 + I
+        loop
+    else drop then 2drop ;
+
+: cmove> ( c-addr1 c-addr2 u -- , Reverse copy from c-addr1 to c-addr2 )
+    dup 0> if                           \ do nothing if u <= 0
+        dup 0 do                        \ dup u, enter loop
+            i swap >r                   \ get I, then save u in return stack
+            r@ swap - 1- >r             \ push u - I - 1 to return stack
+            over r@ + c@                \ store c-addr1 + u - I - 1
+            over r> + c!                \ store c-addr1 + u - I - 1
+            r>                          \ pull u back from loop stack
+        loop drop                       \ drop saved u
+    else drop then 2drop ;
+
+( nodoc ) : _(compare) ( c-addr1 u1 c-addr2 u2 xt -- -1 | 0 | 1 , Compare )
+    4 0 do 4 roll loop                  \ xt c-addr1 u1 c-addr2 u2
+    rot 2dup min >r rot rot r>          \ find the shortest string length
+    swap >r rot >r                      \ move lengths to return
+    0 ?do                               \ loop on max length
+        over i + c@                     \ get char from c-addr1 + I
+        over i + c@                     \ get char from c-addr2 + I
+        4 pick execute                  \ compare chars, maybe case insensitive
+        dup 0<> if                      \ subtract, see if different chars
+            0< if -1 else 1 then        \ different, return -1 or 1
+            2rdrop >r drop 2drop r>     \ stack cleanup
+            unloop exit
+        then drop
+    loop 2drop drop
+    2r> swap -                          \ equal so far, compare lengths
+    dup 0< if drop -1 exit then
+    dup 0> if drop  1 exit then ;
+
+( nodoc ) : _(cuc) ( c -- c , Convert c to uppercase if in range a-z )
+    dup char a char z 1+ within if char a - char A + then ;
+
+( nodoc ) : _(cidiff) ( c1 c2 -- n , n is c1 - c2 after uppercasing both )
+    >r _(cuc) r> _(cuc) - ;
+
+: compare ( c-addr1 u1 c-addr2 u2 -- -1 | 0 | 1 , Compare two strings )
+    ' - _(compare) ;                    \ char compare is ' -
+
+: comparei ( c-addr1 u1 c-addr2 u2 -- -1 | 0 | 1 , Compare strings, no case )
+    ' _(cidiff) _(compare) ;            \ char compare is our _(cidiff)
+
+( nodoc ) : _(search) ( c-addr1 u1 c-addr2 u2 xt -- a u flag , Search )
+    4 0 do 4 roll loop                  \ xt c-addr1 u1 c-addr2 u2
+    dup 3 pick swap -                   \ find difference in lengths
+    dup 0< if
+        drop 2drop rot drop false exit  \ return if u2 > u1
+    then
+    1+ 0 do                             \ iterate, searching using compare
+        3 pick i + over 2over
+        8 pick execute                  \ compare strs, maybe case insensitive
+        0= if                           \ compare returns 0 if found
+            2drop swap i + swap i -     \ add i to c-addr1, subtract from u1
+            rot drop true unloop exit   \ return true flag
+        then
+    loop
+    2drop drop false ;
+
+: search ( c-addr1 u1 c-addr2 u2 -- a u flag , Search for c-addr2 in c-addr1 )
+    ' compare _(search) ;
+
+: searchi ( c-addr1 u1 c-addr2 u2 -- a u flag , Search, no case )
+    ' comparei _(search) ;
+
+: sliteral ( -- , Null definition for compatibility ) ;

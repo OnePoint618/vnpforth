@@ -1,0 +1,79 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ Comparison functions.
+
+code 0< ( n -- t , Return true if n < 0 )
+    call v4__dpop@PLT
+    sar $31,%eax                        \ eax = 0xffffffff or 0
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: 0= ( w -- t , Return true if w = 0 )
+    if 0 exit then -1 ;
+
+: 0<> ( n -- t , Return true if n != 0 )
+    0= invert ;
+
+: 0> ( n -- t , Return true if n > 0 )
+    dup 0< if drop 0 exit then 0<> ;
+
+: = ( w1 w2 -- t , Return true if w1 = w2 )
+    xor 0= ;
+
+: u< ( u1 u2 -- t , Return true if u1 < u2 )
+    2dup xor 0< if nip 0< exit then - 0< ;
+
+: u> ( u1 u2 -- t , Return true if u1 > u2 )
+    dup u< if drop 0 exit then 0<> ;
+
+: u<= ( u1 u2 -- t , Return true if u1 <= u2 )
+    u< invert ;
+
+: u>= ( u1 u2 -- t , Return true if u1 >= u2 )
+    u> invert ;
+
+: < ( n1 n2 -- t , Return true if n1 < n2 )
+    2dup xor 0< if drop 0< exit then - 0< ;
+
+: > ( n1 n2 -- t , Return true if n1 > n2 )
+    2dup xor 0= if 2drop 0 exit then swap < ;
+
+: <> ( n1 n2 -- t , Return true if n1 != n2 )
+    = invert ;
+
+: <= ( n1 n2 -- t , Return true if n1 <= n2 )
+    > invert ;
+
+: >= ( n1 n2 -- t , Return true if n1 >= n2 )
+    < invert ;
+
+: max ( n1 n2 -- n , Return the larger of n1 n2 )
+    2dup < if swap then drop ;
+
+: min ( n1 n2 -- n , Return the smaller of n1 n2 )
+    2dup swap < if swap then drop ;
+
+: within ( u ul uh -- t , Return true if u lies between ul and uh )
+    over - >r - r> u< ;

@@ -1,0 +1,79 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Core I/O functions.  Just the real primitives live here.
+
+\ Provides infile-id and outfile-id to allow redirection of KEY and TYPE
+\ primitives.  Changing them also controls ACCEPT, ., EMIT and so on.
+
+: stdin  ( -- 0 , System stdin file descriptor )  0 ;
+: stdout ( -- 1 , System stdout file descriptor ) 1 ;
+: stderr ( -- 2 , System stderr file descriptor ) 2 ;
+
+( nodoc ) create _(fds) 3 cells allot   ( Element 0=flag, 1=input, 2=output )
+
+( nodoc ) : _(getfd) ( n -- a , Initialize fds, return _fds + n cells )
+    _(fds) dup @ invert if
+        true over !                     \ set init flag
+        dup cell+ stdout stdin rot 2!   \ default to stdin, stdout
+    then
+    swap cells + ;                      \ return _(fds) + n cells
+
+: infile-id ( -- a , Return infile id address, initialized to stdin )
+    1 _(getfd) ;
+
+: outfile-id ( -- a , Return outfile id address, initialized to stdout )
+    2 _(getfd) ;
+
+( nodoc ) : _(file-execute) ( xt file-id file-id-addr -- , Exec, redirected )
+    dup @ over 2>r ! execute 2r> ! ;
+
+: infile-execute ( xt file-id -- , Execute xt with input from file-id )
+    infile-id _(file-execute) ;
+
+: outfile-execute ( xt file-id -- , Execute xt with output to file-id )
+    outfile-id _(file-execute) ;
+
+( nodoc ) : _(iosys) ( a1 a2 a3 X -- , Call syscall X, 3 args, check status )
+    3 _syscall _post_syscall dup -1 = swap 0= or if -57 throw then ;
+
+: key ( -- c , Read c from infile-id )
+    0 sp@ 1                             \ stack cell as a 1-char buffer
+    swap ( nchars buf-addr ) infile-id @ ( fd ) 3 ( read ) _(iosys) ;
+
+: type ( a u -- , Print string of length u at a to outfile-id )
+    dup 0> if                           \ nothing if u is zero
+        swap ( nchars buf-addr ) outfile-id @ ( fd ) 4 ( write ) _(iosys)
+    else 2drop then ;
+
+: emit ( c -- , Send c to outfile-id )
+    sp@ 1 type drop ;
+
+: bl ( -- c , ASCII space character )
+    32 ;
+
+: space ( -- , Write one space to outfile-id )
+    bl emit ;
+
+: spaces ( n -- , Write n spaces to outfile-id )
+    0 ?do space loop ;
+
+: cr ( -- , Write carriage return to outfile-id )
+    10 emit ;

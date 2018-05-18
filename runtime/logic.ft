@@ -1,0 +1,79 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ Logic functions.
+
+code and ( w1 w2 -- w , Return logical AND of w1 w2 )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = w2
+    call v4__dpop@PLT                   \ eax = w1
+    and %edi,%eax                       \ eax = w1 & w2
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code or ( w1 w2 -- w , Return the logical OR of w1 w2 )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = w2
+    call v4__dpop@PLT                   \ eax = w1
+    or %edi,%eax                        \ eax = w1 | w2
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code xor ( w1 w2 -- w , Return the logical XOR of w1 w2 )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = w2
+    call v4__dpop@PLT                   \ eax = w1
+    xor %edi,%eax                       \ eax = w1 ^ w2
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code lshift ( w u -- w , Left shift w by u bits )
+    call v4__dpop@PLT
+    mov %eax,%ecx                       \ cl = u
+    call v4__dpop@PLT                   \ eax = w
+    shl %cl,%eax                        \ eax = w << u
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code rshift ( w u -- w , Right shift w by u bits )
+    call v4__dpop@PLT
+    mov %eax,%ecx                       \ cl = u
+    call v4__dpop@PLT                   \ eax = w
+    shr %cl,%eax                        \ eax = w >> u
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: invert ( w -- w , Invert each bit in w )
+    -1 xor ;
+
+: false ( --  0 )  0 ;
+: true  ( -- -1 ) -1 ;

@@ -1,0 +1,92 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Forth words implementing the remaining Linux system calls.
+
+\ Format is:
+\ Function                                       Callnum
+\  |                                             |   Number of arguments
+\  |                                             |   |
+\  V                                             V   V
+: _ptrace                   ( a1 a2 a3 a4 -- r ) 26  4 _syscall _post_syscall ;
+: _sync                                 ( -- r ) 36  0 _syscall _post_syscall ;
+: _acct                                 ( -- r ) 51  0 _syscall _post_syscall ;
+: _umount                               ( -- r ) 52  0 _syscall _post_syscall ;
+: _ustat                                ( -- r ) 62  0 _syscall _post_syscall ;
+: _sgetmask                             ( -- r ) 68  0 _syscall _post_syscall ;
+: _ssetmask                          ( a1 -- r ) 69  1 _syscall _post_syscall ;
+: _sethostname                    ( a1 a2 -- r ) 74  2 _syscall _post_syscall ;
+: _setrlimit                      ( a1 a2 -- r ) 75  2 _syscall _post_syscall ;
+: _getrusage                      ( a1 a2 -- r ) 77  2 _syscall _post_syscall ;
+: _gettimeofday                   ( a1 a2 -- r ) 78  2 _syscall _post_syscall ;
+: _settimeofday                   ( a1 a2 -- r ) 79  2 _syscall _post_syscall ;
+: _getgroups16                    ( a1 a2 -- r ) 80  2 _syscall _post_syscall ;
+: _setgroups16                    ( a1 a2 -- r ) 81  2 _syscall _post_syscall ;
+: _uselib                            ( a1 -- r ) 86  1 _syscall _post_syscall ;
+: _swapon                            ( a1 -- r ) 87  1 _syscall _post_syscall ;
+: _reboot                      ( a1 a2 a3 -- r ) 88  3 _syscall _post_syscall ;
+: _statfs                         ( a1 a2 -- r ) 99  2 _syscall _post_syscall ;
+: _fstatfs                        ( a1 a2 -- r ) 100 2 _syscall _post_syscall ;
+: _ioperm                      ( a1 a2 a3 -- r ) 101 3 _syscall _post_syscall ;
+: _iopl                              ( a1 -- r ) 110 1 _syscall _post_syscall ;
+: _vhangup                              ( -- r ) 111 0 _syscall _post_syscall ;
+: _swapoff                           ( a1 -- r ) 115 1 _syscall _post_syscall ;
+: _setdomainname                     ( a1 -- r ) 121 1 _syscall _post_syscall ;
+: _modify_ldt                           ( -- r ) 123 0 _syscall _post_syscall ;
+: _adjtimex                             ( -- r ) 124 0 _syscall _post_syscall ;
+: _mprotect                    ( a1 a2 a3 -- r ) 125 3 _syscall _post_syscall ;
+: _create_module                        ( -- r ) 127 0 _syscall _post_syscall ;
+: _init_module                          ( -- r ) 128 0 _syscall _post_syscall ;
+: _delete_module                        ( -- r ) 129 0 _syscall _post_syscall ;
+: _get_kernel_syms                      ( -- r ) 130 0 _syscall _post_syscall ;
+: _quotactl                 ( a1 a2 a3 a4 -- r ) 131 4 _syscall _post_syscall ;
+: _bdflush                              ( -- r ) 134 0 _syscall _post_syscall ;
+: _sysfs                             ( a1 -- r ) 135 1 _syscall _post_syscall ;
+: _getsid                            ( a1 -- r ) 147 1 _syscall _post_syscall ;
+: _fdatasync                         ( a1 -- r ) 148 1 _syscall _post_syscall ;
+: _sysctl                            ( a1 -- r ) 149 1 _syscall _post_syscall ;
+: _mlock                          ( a1 a2 -- r ) 150 2 _syscall _post_syscall ;
+: _munlock                        ( a1 a2 -- r ) 151 2 _syscall _post_syscall ;
+: _mlockall                          ( a1 -- r ) 152 1 _syscall _post_syscall ;
+: _munlockall                           ( -- r ) 153 0 _syscall _post_syscall ;
+: _sched_setparam                 ( a1 a2 -- r ) 154 2 _syscall _post_syscall ;
+: _sched_getparam                 ( a1 a2 -- r ) 155 2 _syscall _post_syscall ;
+: _sched_setscheduler          ( a1 a2 a3 -- r ) 156 3 _syscall _post_syscall ;
+: _sched_getscheduler                ( a1 -- r ) 157 1 _syscall _post_syscall ;
+: _sched_yield                          ( -- r ) 158 0 _syscall _post_syscall ;
+: _sched_get_priority_max            ( a1 -- r ) 159 1 _syscall _post_syscall ;
+: _sched_get_priority_min            ( a1 -- r ) 160 1 _syscall _post_syscall ;
+: _sched_rr_get_interval          ( a1 a2 -- r ) 161 2 _syscall _post_syscall ;
+: _vm86                           ( a1 a2 -- r ) 166 2 _syscall _post_syscall ;
+: _query_module          ( a1 a2 a3 a4 a5 -- r ) 167 5 _syscall _post_syscall ;
+: _nfsservctl                  ( a1 a2 a3 -- r ) 169 3 _syscall _post_syscall ;
+: _prctl                 ( a1 a2 a3 a4 a5 -- r ) 172 5 _syscall _post_syscall ;
+: _capget                         ( a1 a2 -- r ) 184 2 _syscall _post_syscall ;
+: _capset                         ( a1 a2 -- r ) 185 2 _syscall _post_syscall ;
+: _truncate64                  ( a1 a2 a3 -- r ) 193 3 _syscall _post_syscall ;
+: _ftruncate64                 ( a1 a2 a3 -- r ) 194 3 _syscall _post_syscall ;
+: _stat64                         ( a1 a2 -- r ) 195 2 _syscall _post_syscall ;
+: _lstat64                        ( a1 a2 -- r ) 196 2 _syscall _post_syscall ;
+: _fstat64                        ( a1 a2 -- r ) 197 2 _syscall _post_syscall ;
+\ : _setfsuid                        ( a1 -- r ) 215 1 _syscall _post_syscall ;
+\ : _setfsgid                        ( a1 -- r ) 216 1 _syscall _post_syscall ;
+: _pivot_root                     ( a1 a2 -- r ) 217 2 _syscall _post_syscall ;
+: _mincore                     ( a1 a2 a3 -- r ) 218 3 _syscall _post_syscall ;
+: _madvise                     ( a1 a2 a3 -- r ) 219 3 _syscall _post_syscall ;

@@ -1,0 +1,457 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ Forth basic floating point functions.
+
+\ ANSI requires that F>D truncates rather than rounding.  The F>D below
+\ tries to accomplish this by setting FPU control bits, but still appears
+\ prone to rounding for values over about 1e7.  Sorry about this bug.
+
+\ The declarations FVARIABLE and FCONSTANT are supplied by the compiler.
+
+
+\ The following variables help us to handle the FPU and its stack a
+\ little more smoothly.
+
+( nodoc ) variable _fsindex             ( Forth FP stack current index )
+( nodoc ) variable _finit               ( FPU initialization flag )
+( nodoc ) variable _fstemp              ( Temporary FP variable )
+
+
+\ Forth return stack push and pop functions.  Since the PC FPU is stack-
+\ based this is simplified into routines that transfer data between
+\ registers and the FPU stack and add a bit of checking.  Limits at six
+\ levels of FP stack, permitted by the Forth standard.
+
+\ Init, push and pop functions preserve all registers, with the caveat that
+\ pop returns the popped stack value in eax.
+\ These functions take arguments from registers, and do not conform to the
+\ Intel ABI standard.
+\ _fpuinit: input  none
+\           output none
+\ _fpush:   input  eax, value to push
+\           output eax, unchanged, value pushed
+\ _fpop:    input  none
+\           output eax, value popped
+
+( nodoc ) code _fpuinit ( F: -- , Initialize the FPU if not yet done )
+    mov v4__finit@GOT(%ebx),%edi        \ edi = &_finit
+    cmp $0,(%edi)
+    ja 1f                               \ if not _finit then
+
+    finit                               \   initialize FPU
+    incl (%edi)                         \   _finit = true
+1:                                      \ endif
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _fpush ( F: -- r , Push %eax onto the FP stack )
+    call v4__fpuinit@PLT                \ maybe initialize the FPU
+
+    mov v4__fsindex@GOT(%ebx),%esi      \ esi = &_fsindex
+    cmpl $6,(%esi)
+    jb 1f                               \ if FDEPTH >= size then
+
+    mov $-44,%eax                       \   eax = -44
+    call v4__dpush@PLT                  \   push -44
+    call v4_throw@PLT                   \   throw exception
+                                        \   NOT REACHED
+1:                                      \ endif
+
+    mov v4__fstemp@GOT(%ebx),%edi       \ edi = &_fstemp
+    mov %eax,(%edi)                     \ *edi = eax
+    flds (%edi)                         \ push FPU stack <- *edi
+    incl (%esi)                         \ _fsindex++
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _fpop ( F: r -- , Pop %eax off the FP stack )
+    mov v4__fsindex@GOT(%ebx),%esi      \ esi = &_fsindex
+    cmpl $0,(%esi)
+    ja 1f                               \ if DEPTH <= 0 then
+
+    mov $-45,%eax                       \   eax = -45
+    call v4__dpush@PLT                  \   push -45
+    call v4_throw@PLT                   \   throw exception
+                                        \   NOT REACHED
+1:                                      \ endif
+
+    decl (%esi)                         \ _fsindex--
+    mov v4__fstemp@GOT(%ebx),%edi       \ edi = &_fstemp
+    fstps (%edi)                        \ pop from FPU stack -> *edi
+    mov (%edi),%eax                     \ eax = *edi
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+
+\ Helper function to check that the floating stack has at least one item
+\ on it.  Raises float stack underflow exception if not.  Otherwise preserves
+\ all registers.
+\ _fcheck: input  none
+\          output none
+
+( nodoc ) code _fcheck ( F: r -- r , Ensure FP stack is at least one deep )
+    mov v4__fsindex@GOT(%ebx),%esi      \ esi = &_fsindex
+    cmpl $0,(%esi)
+    ja 1f                               \ if DEPTH <= 0 then
+
+    mov $-45,%eax                       \   eax = -45
+    call v4__dpush@PLT                  \   push -45
+    call v4_throw@PLT                   \   throw exception
+                                        \   NOT REACHED
+1:                                      \ endif
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: float ( -- n , Size of a float ) 4 ;
+
+: floats ( n -- a , Convert n to float offset ) float * ;
+: float+ ( a -- a , Advance a by one float ) float + ;
+: float- ( a -- a , Regress a by one float ) float - ;
+
+code >f ( w -- ) ( F: -- r , Transfer w from the data to the FP stack )
+    call v4__dpop@PLT
+    call v4__fpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code f> ( -- w ) ( F: r -- , Transfer r from the FP to the data stack )
+    call v4__fpop@PLT
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code f>d ( -- d ) ( F: r --, Copy integral part of r into dl, sign extend dh )
+    call v4__fcheck@PLT                 \ check r present
+    mov v4__fstemp@GOT(%ebx),%edi       \ edi = &_fstemp
+
+    fnstcw (%edi)                       \ _fstemp = fpu control word
+    mov (%edi),%esi                     \ esi = fpu control word, saved
+    mov %esi,%eax                       \ eax = fpu control word
+    mov $12,%ah                         \ set rounding control to truncation
+    mov %eax,(%edi)
+    fldcw (%edi)                        \ load new fpu status
+    fistl (%edi)
+    mov (%edi),%eax                     \ eax = int(r)
+    mov %esi,(%edi)                     \ _fstemp = saved fpu control word
+    fldcw (%edi)                        \ restore old fpu control
+
+    call v4__dpush@PLT                  \ push dl
+    sar $31,%eax                        \ eax = 0xffffffff or 0
+    call v4__dpush@PLT                  \ push eax as dh
+    call v4__fpop@PLT                   \ pop r
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code d>f ( d -- ) ( F: -- r, Copy dl into integral part of r, ignore dh )
+    call v4__fpuinit@PLT                \ maybe initialize the FPU
+
+    call v4__dpop@PLT                   \ drop dh, ignored (hack, sorry)
+    call v4__dpop@PLT                   \ eax = dl
+
+    mov v4__fstemp@GOT(%ebx),%edi       \ edi = &_fstemp
+    mov %eax,(%edi)                     \ _fstemp = dl
+    fildl (%edi)                        \ pushes onto fpu stack...
+    fstps (%edi)                        \ ...so pull back into memory
+    mov (%edi),%eax
+    call v4__fpush@PLT                  \ fpush float repr (fsindex sync)
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) : _fp@ ( -- a , Return a "virtual" float stack pointer address )
+    _fsindex @ ;                        \ fake, there is no in-memory stack
+
+( nodoc ) : _fp! ( a -- , Set float stack depth from a _FP@ value )
+    _fsindex
+    begin 2dup @ < while f> drop repeat \ drop until index reaches target
+    begin 2dup @ > while 0.0 repeat     \ ...or pad until index reaches target
+    2drop ;
+
+: fdepth ( -- n , Return the depth of the FP stack )
+    _fsindex @ ;
+
+: f! ( f-addr -- ) ( F: r -- , Store r at address f-addr )
+    f> swap ! ;
+
+: f@ ( f-addr -- ) ( F: -- r , Fetch r from address f-addr )
+    @ >f ;
+
+: fdrop ( F: r -- , Drop an item from the FP stack )
+    f> drop ;
+
+: fswap ( F: r1 r2 -- r2 r1 , Swap the top two items of the FP stack )
+    f> f> swap >f >f ;
+
+: fdup ( F: r -- r r , Duplicate the top item of the FP stack )
+    f> dup >f >f ;
+
+: fover ( F: r1 r2 -- r1 r2 r1 , Duplicate r1 onto the top of the FP stack )
+    f> fdup >f fswap ;
+
+: frot ( F: r1 r2 r3 -- r2 r3 r1 , Rotate the top three FP stacked items )
+    f> fswap >f fswap ;
+
+: faligned ( a -- aa , First float aligned address greater than or equal to a )
+    aligned ;
+
+code f0< ( -- t ) ( F: r -- , Return true if and only if r is less than 0.0 )
+    call v4__fcheck@PLT                 \ check r present
+    ftst                                \ compare r against zero
+    fnstsw %ax                          \ copy FPU status to %ax
+    and $0x0100,%ax                     \ isolate <0 bit in FPU status
+    shl $23,%eax                        \ eax = 0x80000000 or 0
+    sar $31,%eax                        \ eax = 0xffffffff or 0
+    call v4__dpush@PLT
+    call v4__fpop@PLT                   \ pop r
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code f0= ( -- t ) ( F: r -- , Return true if and only if r is equal to 0.0 )
+    call v4__fcheck@PLT                 \ check r present
+    ftst                                \ compare r against zero
+    fnstsw %ax                          \ copy FPU status to %ax
+    and $0x4000,%ax                     \ isolate =0 bit in FPU status
+    shl $17,%eax                        \ eax = 0x80000000 or 0
+    sar $31,%eax                        \ eax = 0xffffffff or 0
+    call v4__dpush@PLT
+    call v4__fpop@PLT                   \ pop r
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _(f>) ( -- t ) ( F: r1 r2 -- , Return true iff r1 is > r2 )
+    call v4__fpop@PLT                   \ check r2 present
+    call v4__fcheck@PLT                 \ check r1 present
+    call v4__fpush@PLT                  \ put r2 back
+    fcompp                              \ compare r1 against r2, pop r1, r2
+
+    fnstsw %ax                          \ copy FPU status to %ax
+    and $0x0100,%ax                     \ isolate < bit in FPU status
+    shl $23,%eax                        \ eax = 0x80000000 or 0
+    sar $31,%eax                        \ eax = 0xffffffff or 0
+    call v4__dpush@PLT
+
+    mov v4__fsindex@GOT(%ebx),%esi      \ esi = &_fsindex
+    sub $2,(%esi)                       \ adjust _fsindex for pop of r1 and r2
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: f< ( -- t ) ( F: r1 r2 -- , Return true if and only if r1 is less than r2 )
+    fswap _(f>) ;
+
+code f+ ( F: r1 r2 -- r , Add r1 to r2 )
+    call v4__fpop@PLT                   \ pop r2 to %eax
+    mov v4__fstemp@GOT(%ebx),%edi       \ edi = &_fstemp
+    mov %eax,(%edi)                     \ *edi = eax
+    call v4__fcheck@PLT                 \ check r1 present
+    fadds (%edi)
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code f- ( F: r1 r2 -- r , Subtract r2 from r1 )
+    call v4__fpop@PLT                   \ pop r2 to %eax
+    mov v4__fstemp@GOT(%ebx),%edi       \ edi = &_fstemp
+    mov %eax,(%edi)                     \ *edi = eax
+    call v4__fcheck@PLT                 \ check r1 present
+    fsubs (%edi)
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code f* ( F: r1 r2 -- r , Multiply r1 by r2 )
+    call v4__fpop@PLT                   \ pop r2 to %eax
+    mov v4__fstemp@GOT(%ebx),%edi       \ edi = &_fstemp
+    mov %eax,(%edi)                     \ *edi = eax
+    call v4__fcheck@PLT                 \ check r1 present
+    fmuls (%edi)
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _(f/) ( F: r1 r2 -- r , Divide r1 by r2 )
+    call v4__fpop@PLT                   \ pop r2 to %eax
+    mov v4__fstemp@GOT(%ebx),%edi       \ edi = &_fstemp
+    mov %eax,(%edi)                     \ *edi = eax
+    call v4__fcheck@PLT                 \ check r1 present
+    fdivs (%edi)
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: f/ ( F: r1 r2 -- r , Divide r1 by r2 )
+    fdup f0= if -42 throw then _(f/) ;
+
+code fabs ( F: -r|+r -- +r , Negate r if r is negative )
+    call v4__fcheck@PLT                 \ check r present
+    fabs
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code fround ( F: r -- r , Round r to an integral value )
+    call v4__fcheck@PLT                 \ check r present
+    frndint
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code fnegate ( F: r -- -r , Negate r )
+    call v4__fcheck@PLT                 \ check r present
+    fchs
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: f~ ( -- flag ) ( F: r1 r2 r3 -- , Compare close, exact, or relative )
+    fdup f0= if                         \ exact comparison?
+        fdrop f> f> =                   \ bit-equivalent, +/-0.0 differ
+
+    else fdup f0< invert if             \ close comparison?
+        frot frot f- fabs fswap f<      \ abs(r1-r2)<r3
+
+    else                                \ relative comparison
+        fabs frot frot fover fover      \ abs(r3) r1 r2 r1 r2
+        f- fabs f>                      \ abs(r3) r1 r2 [abs(r1-r2)]
+        fabs fswap fabs f+ f* >f        \ abs(r3)*(abs(r1)+abs(r2)) abs(r1-r2)
+        fswap f<                        \ abs(r1-r2)<abs(r3)*(abs(r1)+abs(r2))
+    then then ;
+
+: fmax ( F: r1 r2 -- r , Return the larger of r1 r2 )
+    fover fover f< if fswap then fdrop ;
+
+: fmin ( F: r1 r2 -- r , Return the smaller of r1 r2 )
+    fover fover fswap f< if fswap then fdrop ;
+
+code fsqrt ( F: r -- r^0.5 , Calculate the square root of r )
+    call v4__fcheck@PLT                 \ check r present
+    fsqrt
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code fsin ( F: r -- r , Calculate the sin of r )
+    call v4__fcheck@PLT                 \ check r present
+    fsin
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code fcos ( F: r -- r , Calculate the cos of r )
+    call v4__fcheck@PLT                 \ check r present
+    fcos
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code fsincos ( F: r -- rs rc , Calculate the sin and cos of r )
+    call v4__fcheck@PLT                 \ check r present
+    fsincos
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: ftan ( F: r -- r , Calculate the tan of r )
+    fsincos f/ ;
+
+( nodoc ) code _(fyl2x) ( F: r1 r2 -- r3 , r3 is r1 * base-2 logarithm of r2 )
+    call v4__fpop@PLT                   \ check r2 present
+    call v4__fcheck@PLT                 \ check r1 present
+    call v4__fpush@PLT                  \ put r2 back
+    fyl2x                               \ r1*log2(r2)
+
+    mov v4__fsindex@GOT(%ebx),%esi      \ esi = &_fsindex
+    decl (%esi)                         \ _fsindex--, for value consumed
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) : _(flog2) ( F: r1 -- r2 , Calculate the base-two logarithm of r1 )
+    1.0 fswap _(fyl2x) ;
+
+: fln ( F: r1 -- r2 , Calculate the natural logarithm of r1 )
+    _(flog2) 0.693147181 f* ;           \ log2(r1)*ln(2)
+
+: flnp1 ( F: r1 -- r2 , Calculate the natural logarithm of one plus r1 )
+    1.0 f+ fln ;                        \ cheap, may lose accuracy
+
+: flog ( F: r1 -- r2 , Calculate the base-ten logarithm of r1 )
+    _(flog2) 0.301029996 f* ;           \ log2(r1)*log(2)
+
+( nodoc ) code _(f2xm1) ( F: r1 -- r2 , 2 to the power r1 - 1, -1.0<r1<1.0 )
+    call v4__fcheck@PLT                 \ check r present
+    f2xm1
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _(fscale) ( F: r1 r2 -- r1 r3 , Add r1 to the exponent of r2 )
+    call v4__fpop@PLT                   \ check r2 present
+    call v4__fcheck@PLT                 \ check r1 present
+    call v4__fpush@PLT                  \ put r2 back
+    fscale
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: f** ( F: r1 r2 -- r3 , Raise r1 to the power r2, giving the product r3 )
+    fswap _(flog2) f*                   \ y*log2(x) [X from now]
+    fdup f>d d>f                        \ X int(X) [truncated, not rounded]
+    fswap fover f-                      \ int(X) frac(X)
+    _(f2xm1) 1.0 f+                     \ int(X) 2^(frac(X))
+    _(fscale)                           \ int(X) 2^(frac(X))>>int(X)
+    fswap fdrop ;                       \ fnip of int(X)
+
+: fexp ( F: r1 -- r2 , Raise e to the power r1, giving r2 )
+    2.718281828 fswap f** ;
+
+: fexpm1 ( F: r1 -- r2 , Raise e to the power r1 and subtract one, giving r2 )
+    fexp 1.0 f- ;                       \ cheap, may lose accuracy
+
+: falog ( F: r1 -- r2 , Raise ten to the power r1, giving r2 )
+    10.0 fswap fexp ;
+
+: sf! ( sf-addr -- ) ( F: r -- , Store r at sf-addr, 32 bits IEEE )
+    f! ;
+
+: sf@ ( sf-addr -- ) ( F: -- r , Fetch r from address sf-addr, 32 bits IEEE )
+    f@ ;
+
+: sfaligned ( a -- aa , First single float aligned address >= a )
+    faligned ;
+
+: sfloat ( -- n , Size of a single float ) float ;
+: sfloats ( n -- a , Convert n to single float offset ) floats ;
+: sfloat+ ( a -- a , Advance a by one single float ) float+ ;
+: sfloat- ( a -- a , Regress a by one single float ) float- ;
+
+: fliteral ( -- , Null definition for compatibility ) ;

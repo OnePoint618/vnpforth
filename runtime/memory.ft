@@ -1,0 +1,125 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ Memory execute, fetch and store functions.
+
+code execute ( xt -- , Call function at address xt )
+    call v4__dpop@PLT
+    call *%eax                          \ *eax()
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code ! ( w a -- , Store w at address a )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = a
+    call v4__dpop@PLT                   \ eax = w
+    mov %eax,(%edi)                     \ *edi = eax
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code @ ( a -- w , Fetch w from address a )
+    call v4__dpop@PLT
+    mov (%eax),%eax                     \ eax = *eax
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code c! ( c a -- , Store character c at address a )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = b
+    call v4__dpop@PLT                   \ eax = w
+    mov %al,(%edi)                      \ *edi = al
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code c@ ( a -- c , Fetch character c from address a )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = b
+    xor %eax,%eax                       \ eax = 0
+    mov (%edi),%al                      \ al = *edi
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code w! ( w a -- , Store half word w at address a )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = b
+    call v4__dpop@PLT                   \ eax = w
+    mov %ax,(%edi)                      \ *edi = ax
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code w@ ( a -- w , Fetch half word w from address a )
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = b
+    xor %eax,%eax                       \ eax = 0
+    mov (%edi),%ax                      \ ax = *edi
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: +! ( n a -- , Add n to the number at address a )
+    swap over @ + swap ! ;
+
+: 2! ( w1 w2 a -- , Store w1 w2 in consecutive words at address a )
+    swap over ! cell+ ! ;
+
+: 2@ ( a -- w1 w2 , Fetch w1 w2 from consecutive words at address a )
+    dup cell+ @ swap @ ;
+
+: fill ( a u ch -- , Fill addresses a to a+u with character ch )
+    swap dup 0> if                      \ refuse if u <= 0
+        0 ?do
+            2dup swap i + c!            \ store ch at a + I
+        loop
+    else drop then 2drop ;
+
+: move ( a1 a2 u -- , Copy u characters from a1 to a2 )
+    dup 0> if                           \ refuse if u < 0
+        >r 2dup - r@ - 1+ 0<            \ test if a2-a1>=u (overlap)
+        if
+            swap r@ + 1-                \ reverse copy - add u to a1,a2
+            swap r@ + 1-
+            r> 0 ?do                    \ do reverse copy
+                2dup swap i - c@
+                     swap i - c!        \ copy ch from a1+u-I-1 to a2+u-I-1
+            loop
+        else
+            r> 0 ?do                    \ ordinary forward copy
+                2dup swap i + c@
+                     swap i + c!        \ copy ch from a1+I to a2+I
+            loop
+        then
+    else drop then 2drop ;
+
+: erase ( a u -- , Fill u characters, from a to a+u, with zeroes )
+    0 fill ;
+
+: aligned ( a -- aa , Return first aligned address greater than or equal to a )
+    cell+ 1- -1 cells and ;

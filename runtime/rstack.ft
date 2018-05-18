@@ -1,0 +1,107 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ Forth return stack definition.
+
+create _rstack 2048 cells allot         ( Forth return stack, 2032 cells )
+                                        \ 2048 - 16 for exception handling
+( nodoc ) variable _rsindex             ( Forth return stack current index )
+
+
+\ Forth return stack push and pop functions.
+
+\ Both functions will and must preserve all registers, with the caveat that
+\ pop returns the popped stack value in eax.
+\ These functions take arguments from registers, and do not conform to the
+\ Intel ABI standard.
+\ _rpush: input  eax, value to push
+\         output eax, unchanged, value pushed
+\ _rpop:  output eax, value popped
+
+( nodoc ) code _rpush ( R: -- w , Push %eax onto the return stack )
+    push %ecx                           \ save ecx, edx
+    push %edx
+    mov $2032,%ecx                      \ ecx = 2032 user-visible cells
+    mov v4__rstack@GOT(%ebx),%edi       \ edi = &_rstack[0]
+    mov v4__rsindex@GOT(%ebx),%esi      \ esi = &_rsindex
+    mov $-5,%edx                        \ edx = rstack overflow exception
+    call v4__push@PLT
+    pop %edx                            \ restore edx, ecx
+    pop %ecx
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+( nodoc ) code _rpop ( R: w -- , Pop the return stack into %eax )
+    push %edx                           \ save edx
+    mov v4__rstack@GOT(%ebx),%edi       \ edi = &_rstack[0]
+    mov v4__rsindex@GOT(%ebx),%esi      \ esi = &_rsindex
+    mov $-6,%edx                        \ edx = rstack underflow exception
+    call v4__pop@PLT
+    pop %edx                            \ restore edx
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code >r ( w -- ) ( R: -- w , Transfer w from the data to the return stack )
+    call v4__dpop@PLT
+    call v4__rpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code r> ( -- w ) ( R: w -- , Transfer w from the return to the data stack )
+    call v4__rpop@PLT
+    call v4__dpush@PLT
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+: rdepth ( -- n, Return the current depth of the return stack )
+    _rsindex @ ;
+
+: rp0 (  -- a , Return the return stack base pointer )
+    _rstack ;
+
+: rp@ ( -- a , Return the return stack effective current pointer )
+    rdepth 1- cells rp0 + ;
+
+: rp! ( a -- , Set return stack pointer, obtained previously with RP@ )
+    rp0 - cell+ cell / _rsindex ! ;
+
+: r@ ( -- w , Return the value on the current return stack top )
+    r> dup >r ;
+
+: rdrop ( R: w -- , Drop an item from the return stack )
+    r> drop ;
+
+: 2>r ( w1 w2 -- ) ( R: -- w1 w2 , Transfer a pair of values from data )
+    swap >r >r ;
+
+: 2r> ( -- w1 w2 ) ( R: w1 w2 -- , Transfer a pair of values to data )
+    r> r> swap ;
+
+: 2r@ ( -- w1 w2 ) ( R: w1 w2 -- w1 w2 , Get the top two return stack values )
+    r> r> 2dup >r >r swap ;
+
+: 2rdrop ( R: w1 w2 -- , Drop two items from the return stack )
+    rdrop rdrop ;

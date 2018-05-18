@@ -1,0 +1,78 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+\ This module requires the -fPIC compile option.
+
+
+\ C/C++ argument passing convention.  Enables Forth stacked data to be
+\ transferred to the 'C' (machine) stack prior to calling a 'C' function,
+\ and 'C' to call Forth functions to push and pop from the data stack.
+
+\ Example call of a 'C' function from Forth:
+
+\   5 1 ' __sleep cexecute
+
+\ Equivalent to x = sleep (5).  Calls 'sleep' with one argument - the
+\ value 5.  The '__' prefix prevents Forth's name mangling from changing
+\ the name of the 'sleep' function (so __sleep is actually a call to an
+\ external function 'sleep').  To manipulate data on the Forth stack from
+\ C, use v4_c_push and v4_c_pop, for example:
+
+\   extern void v4_c_push (int); extern int v4_c_pop (void);
+\   v4_c_push (5); v4_c_push (6); v4_swap (); v4_2dup ();
+\   int x = v4_c_pop (); int y = v4_c_pop ();
+\   v4_Dot (); v4_Dot (); v4_cr ();
+
+code cexecute ( a1 ... aN N xt -- status , Call 'C' func xt with N arguments )
+    call v4__dpop@PLT
+    mov %eax,%esi                       \ esi = xt
+    call v4__dpop@PLT
+    mov %eax,%edi                       \ edi = N
+
+    test %eax,%eax
+    jz 2f                               \ if N != 0 then
+
+    mov %eax,%ecx                       \   ecx = N
+1:                                      \   do
+    call v4__dpop@PLT                   \     eax = next stacked argument aI
+    push %eax                           \     push aI
+    loop 1b                             \   while --ecx > 0
+
+2:                                      \ endif
+    call *%esi                          \ make the C function call
+    call v4__dpush@PLT                  \ push the result
+
+    shl $2,%edi                         \ edi = 4 * N
+    add %edi,%esp                       \ adjust stack frame for args used
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code c_push ( -- w , Push a word from 'C' onto the Forth data stack )
+    mov 8(%ebp),%eax                    \ eax = C function argument
+    call v4__dpush@PLT                  \ push eax
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code
+
+code c_pop ( w -- , Pop the Forth top of data stack into eax for 'C' )
+    call v4__dpop@PLT                   \ eax = pop value
+
+    forth_pic.=0b-0b                    \ -fPIC compile check
+end-code

@@ -1,0 +1,74 @@
+\ vi: set ts=2 shiftwidth=2 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+
+\ Define the symbol _start here directly, and make a call to main, then
+\ follow up with a call to the exit() syscall, returning the value found
+\ in %eax as the return status.
+
+\ This startup symbol does little of the usual work found in libc.  Work
+\ such as finding and setting up environments and argc/argv is available,
+\ but additional things, such as AUX vector items, are absent.  For a
+\ program made of mixed C and Forth objects, crt1.o could be a much better
+\ choice.  However, this _start is sufficient for pure Forth executables.
+
+
+\ Variable holding atexit() call address, normally held by libc.
+
+variable _atexit                        ( System _atexit handler address )
+
+
+\ Program entry point, invoked by exec.
+
+code _start ( -- , Forth program entry point, invoked by Linux exec )
+    mov %edx,v4__atexit                 \ atexit handler, from i386 ABI
+
+    mov 4(%ebp),%eax                    \ eax = argc
+
+    mov %ebp,%ebx
+    add $8,%ebx                         \ ebx = argv
+
+    mov %eax,%ecx                       \ ecx = argc
+    inc %ecx                            \ ecx = argc + 1
+    shl $2,%ecx                         \ ecx = (argc + 1) * 4
+    add %ebx,%ecx                       \ ecx = (argc + 1) * 4 + argv = envp
+
+    xor %ebp,%ebp                       \ clear stack frame info
+
+    push %ecx                           \ push envp
+    push %ebx                           \ push argv
+    push %eax                           \ push argc
+
+    call main                           \ user program entry point
+    sub $12,%esp                        \ adjust stack for three args to main
+
+    mov v4__atexit,%edx                 \ edx = atexit handler
+    test %edx,%edx
+    jz 1f                               \ if edx != NULL then
+    push %eax                           \   save main return status code
+    call *%edx                          \   call atexit code passed in
+    pop %eax                            \   restore main return status code
+1:                                      \ endif
+
+    mov %eax,%ebx                       \ ebx = exit status
+    mov $1,%eax                         \ eax = exit()
+    int $0x80
+                                        \ NOT REACHED
+end-code
