@@ -1,0 +1,251 @@
+\ vi: set ts=8 shiftwidth=8 expandtab:
+
+\ VNPForth - Compiled native Forth for x86 Linux
+\ Copyright (C) 2005-2013  Simon Baldwin (simon_baldwin@yahoo.com)
+
+\ This program is free software; you can redistribute it and/or
+\ modify it under the terms of the GNU General Public License
+\ as published by the Free Software Foundation; either version 2
+\ of the License, or (at your option) any later version.
+
+\ This program is distributed in the hope that it will be useful,
+\ but WITHOUT ANY WARRANTY; without even the implied warranty of
+\ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\ GNU General Public License for more details.
+
+\ You should have received a copy of the GNU General Public License
+\ along with this program; if not, write to the Free Software
+\ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+\ Test data.  Each line of this file constitutes a self contained test
+\ for the Forth compiler.  It's split into files, and an attempt is made to
+\ compile each separate test file.  Each should provoke the expect_...
+\ response from the compiler.  Relies on -Ddef -Uundef for conditional
+\ compilation tests.  The file make no sense at all as a single Forth module.
+
+( expect_failure ) ( incomplete
+( expect_failure ) 0 constant 12345
+( expect_failure ) 0.0 fconstant 12345
+( expect_failure ) 0 constant constant
+( expect_failure ) 0.0 fconstant fconstant
+( expect_failure ) 0 constant begin
+( expect_failure ) 0.0 fconstant begin
+( expect_failure ) variable 12345
+( expect_failure ) fvariable 12345
+( expect_failure ) variable variable
+( expect_failure ) fvariable fvariable
+( expect_failure ) variable begin
+( expect_failure ) fvariable begin
+( expect_failure ) create 12345 1 cells allot
+( expect_failure ) create create 1 cells allot
+( expect_failure ) : begin ;
+( expect_failure ) : : ;
+( expect_failure ) : ;
+( expect_failure ) code begin end-code
+( expect_failure ) code end-code
+( expect_failure ) if
+( expect_failure ) if 0 then -1 else
+( expect_failure ) if 0 endif -1 else
+( expect_failure ) then -1
+( expect_failure ) endif -1
+( expect_failure ) else -1 then
+( expect_failure ) else -1 endif
+( expect_failure ) do
+( expect_failure ) ?do
+( expect_failure ) loop
+( expect_failure ) +loop
+( expect_failure ) until
+( expect_failure ) again
+( expect_failure ) repeat
+( expect_failure ) while
+( expect_failure ) case -1 of endof
+( expect_failure ) -1 of endof
+( expect_failure ) endof
+( expect_failure ) endcase
+( expect_failure ) leave
+( expect_failure ) ?leave
+( expect_failure ) v variable v
+( expect_failure ) v fvariable v
+( expect_failure ) v create v 1 cells allot
+( expect_failure ) variable v variable v
+( expect_failure ) fvariable v fvariable v
+( expect_failure ) variable v fvariable v
+( expect_failure ) fvariable v variable v
+( expect_failure ) create v 1 allot create v 1 allot
+( expect_failure ) variable v create v 1 allot
+( expect_failure ) create v 1 allot variable v
+( expect_failure ) create v 1 allot fvariable v
+( expect_failure ) create v 1 invalid allot
+( expect_failure ) create v invalid allot
+( expect_failure ) c 0 constant c
+( expect_failure ) c 0.0 fconstant c
+( expect_failure ) 0 constant c 0 constant c
+( expect_failure ) 0.0 fconstant c 0.0 fconstant c
+( expect_failure ) create a 0 allot
+( expect_failure ) create a 0 cells allot
+( expect_failure ) create a 0 chars allot
+( expect_failure ) create a -1 allot
+( expect_failure ) create a -1 cells allot
+( expect_failure ) create a -1 chars allot
+( expect_failure ) create a 2147483648 allot
+( expect_failure ) create a 2147483648 cells allot
+( expect_failure ) create a 2147483648 chars allot
+( expect_failure ) 0 constant c : main ;
+( expect_failure ) 0.0 fconstant c : main ;
+( expect_failure ) : main ; exit
+( expect_failure ) w : w ;
+( expect_failure ) : w ; : w ;
+( expect_failure ) : w ; variable w
+( expect_failure ) : w ; fvariable w
+( expect_failure ) : w ; create w 1 allot
+( expect_failure ) variable w : w ;
+( expect_failure ) fvariable w : w ;
+( expect_failure ) create w 1 allot : w ;
+( expect_failure ) : w1 : w2 ;
+( expect_failure ) : w1 : w2 ; ;
+( expect_failure ) : w1 code w2 end-code ;
+( expect_failure ) recurse
+( expect_failure ) variable _type ." hello"
+( expect_failure ) fvariable _type ." hello"
+( expect_failure ) variable _abortquote abort" hello"
+( expect_failure ) fvariable _abortquote abort" hello"
+( expect_failure ) -2147483649
+( expect_failure ) -&2147483649
+( expect_failure ) -#2147483649
+( expect_failure ) 4294967296
+( expect_failure ) 04294967296
+( expect_failure ) &4294967296
+( expect_failure ) #4294967296
+( expect_failure ) 0b100000000000000000000000000000000
+( expect_failure ) 0B100000000000000000000000000000000
+( expect_failure ) %100000000000000000000000000000000
+( expect_failure ) 0x100000000
+( expect_failure ) 0X100000000
+( expect_failure ) $100000000
+( expect_failure ) 0o40000000000
+( expect_failure ) 0O40000000000
+( expect_failure ) 1.0e+99
+( expect_failure ) [ifdef]
+( expect_failure ) [ifdef] def
+( expect_failure ) [ifdef] [else]
+( expect_failure ) [ifdef] [then]
+( expect_failure ) [ifdef] [endif]
+( expect_failure ) [ifdef] [else] [then]
+( expect_failure ) [ifdef] [else] [endif]
+( expect_failure ) [ifundef]
+( expect_failure ) [ifundef] undef
+( expect_failure ) [ifundef] [else]
+( expect_failure ) [ifundef] [then]
+( expect_failure ) [ifundef] [endif]
+( expect_failure ) [ifundef] [else] [then]
+( expect_failure ) [ifundef] [else] [endif]
+( expect_failure ) [else] [then]
+( expect_failure ) [else] [endif]
+( expect_failure ) [else]
+( expect_failure ) [then]
+( expect_failure ) [endif]
+( expect_failure ) [ifdef] def [ifundef] undef [else] [else] [then]
+( expect_failure ) w [ifdef] def : w ; [then]
+( expect_failure ) w [ifundef] undef : w ; [then]
+( expect_failure ) w [ifdef] def [ifundef] undef : w ; [then] [then]
+( expect_failure ) [ifdef] 0 [then]
+( expect_failure ) [ifdef] 0.0 [then]
+( expect_failure ) [ifdef] if [then]
+( expect_failure ) [ifdef] s" " [then]
+
+( expect_success )
+( expect_success ) ( )
+( expect_success ) ( comment )
+( expect_success ) ( comment)
+( expect_success ) \
+( expect_success ) \ comment
+( expect_success ) .( )
+( expect_success ) .( comment )
+( expect_success ) .( comment)
+( expect_success ) : w ;
+( expect_success ) : w ; w
+( expect_success ) 0 constant c c
+( expect_success ) 0.0 fconstant c c
+( expect_success ) if else then
+( expect_success ) if else endif
+( expect_success ) do loop
+( expect_success ) do +loop
+( expect_success ) ?do loop
+( expect_success ) ?do +loop
+( expect_success ) do leave loop
+( expect_success ) do leave +loop
+( expect_success ) ?do leave loop
+( expect_success ) ?do leave +loop
+( expect_success ) do ?leave loop
+( expect_success ) do ?leave +loop
+( expect_success ) ?do ?leave loop
+( expect_success ) ?do ?leave +loop
+( expect_success ) begin again
+( expect_success ) begin repeat
+( expect_success ) begin until
+( expect_success ) begin while again
+( expect_success ) begin while repeat
+( expect_success ) case of endof of endof endcase
+( expect_success ) ." "
+( expect_success ) abort" "
+( expect_success ) c" "
+( expect_success ) s" "
+( expect_success ) char
+( expect_success ) char ( )
+( expect_success ) char  ( )
+( expect_success ) [char]  ( )
+( expect_success ) char hello
+( expect_success ) [char] hello
+( expect_success ) 'h
+( expect_success ) 'h'
+( expect_success ) ' w
+( expect_success ) ['] w
+( expect_success ) ' main
+( expect_success ) ['] main
+( expect_success ) : main recurse ;
+( expect_success ) main
+( expect_success ) exit
+( expect_success ) :noname ;
+( expect_success ) :noname ; :noname ;
+( expect_success ) !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+( expect_success ) char £
+( expect_success ) [char] £
+( expect_success ) £££££££££££££££££££££ exit
+( expect_success ) ." £££££££££££££££££££££"
+( expect_success ) abort" £££££££££££££££££££££"
+( expect_success ) c" £££££££££££££££££££££"
+( expect_success ) s" £££££££££££££££££££££"
+( expect_success ) create x 2147483647 allot
+( expect_success ) create x &2147483647 allot
+( expect_success ) create x #2147483647 allot
+( expect_success ) create x 02147483647 allot
+( expect_success ) create x 0b01111111111111111111111111111111 allot
+( expect_success ) create x 0B01111111111111111111111111111111 allot
+( expect_success ) create x %01111111111111111111111111111111 allot
+( expect_success ) create x 0x7FFFFFFF allot
+( expect_success ) create x 0X7FFFFFFF allot
+( expect_success ) create x $7FFFFFFF allot
+( expect_success ) create x 0o17777777777 allot
+( expect_success ) create x 0O17777777777 allot
+( expect_success ) If ElSe ThEn CaSe Of EnDoF Of EnDoF EnDcAsE
+( expect_success ) If ElSe EnDiF CaSe Of EnDoF Of EnDoF EnDcAsE
+( expect_success ) [ifdef] def [then]
+( expect_success ) [ifdef] def [endif]
+( expect_success ) [ifdef] def [else] [then]
+( expect_success ) [ifdef] def [else] [endif]
+( expect_success ) [ifundef] undef [then]
+( expect_success ) [ifundef] undef [endif]
+( expect_success ) [ifundef] undef [else] [then]
+( expect_success ) [ifundef] undef [else] [endif]
+( expect_success ) [ifdef] def [ifundef] undef [else] [then] [else] [then]
+( expect_success ) [ifdef] def [ifundef] undef [else] [endif] [else] [endif]
+( expect_success ) w [ifdef] def [else] : w ; [then]
+( expect_success ) w [ifdef] DEF [else] : w ; [then]
+( expect_success ) w [ifundef] undef [else] : w ; [then]
+( expect_success ) w [ifdef] def [ifdef] undef : w ; [then] [then]
+( expect_success ) w [ifdef] DEF [ifdef] UNDEF : w ; [then] [then]
+( expect_success ) w [IFDEF] DEF [ELSE] : w ; [THEN]
+( expect_success ) w [IFUNDEF] UNDEF [ELSE] : w ; [THEN]
+( expect_success ) w [IfDeF] DeF [ElSe] : w ; [ThEn]
+( expect_success ) w [iFuNdEf] UnDeF [eLsE] : w ; [tHeN]
