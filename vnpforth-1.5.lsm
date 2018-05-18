@@ -1,0 +1,25 @@
+Begin4
+Title:		VNPForth
+Version:	1.5
+Entered-date:	31 Jan 2013
+Description:	VNPForth is a somewhat unusual implementation of the
+		Forth programming language, targetted especially at
+		Linux for the x86.  Instead of the normal dictionary
+		and Forth words interpreter, VNPForth contains a
+		traditional compiler, which turns Forth into standard
+		object (.o) files - these files can then be used to
+		build standalone executables, linking with C, libc,
+		and other object modules as required.  The libforth
+		supplied with VNPForth contains most of the expected
+		ANS Forth core words.  Requires gcc, flex, and bison
+		to build.
+Keywords:	Forth programming language compiler runtime
+Author:		simon_baldwin@yahoo.com (Simon Baldwin)
+Maintained-by:	simon_baldwin@yahoo.com (Simon Baldwin)
+Primary-site:	ftp://metalab.unc.edu/pub/Linux/devel/lang/forth/
+		190kB vnpforth-1.5.tgz
+Alternate-site:	
+Original-site:	
+Platforms:	Linux
+Copying-policy:	GPL
+End

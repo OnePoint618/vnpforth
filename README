@@ -1,0 +1,129 @@
+VNPForth Forth compiler and runtime, version 1.5
+
+
+Introduction
+
+VNPForth implements a subset of ANS Forth.  It passes most of the 1993 Johns
+Hopkins University / Applied Physics Laboratory tests for core ANS Forth words.
+
+Unlike most Forth systems, VNPForth has no word dictionary.  Instead, it
+compiles to modular object (.o) files like C and C++ programs, and links to
+a runtime library.  Because they use the same object file format as standard C,
+VNPForth modules can call, and be called by, C and C++ modules.
+
+A compiled VNPForth program is a standalone executable, and needs no special
+runtime on the target system.  Statically linked programs are orders of
+magnitude smaller than their C equivalent.
+
+VNPForth is very non-portable.  It contains assembly language code written
+for the GNU assembler, and will run only on x86 and x86_64 CPUs -- i386,
+i486, Pentium, i686 and similar.  It makes system calls directly into the
+kernel, bypassing libc, so will not run on operating systems other than Linux.
+VNPForth requires at least a 2.2 or 2.4 Linux kernel.
+
+
+Quick start
+
+Create a Forth version of hello-world in hello.ft:
+
+    $ cat <<EOF >hello.ft
+    ." Hello from VNPForth" CR 0 DROP
+    EOF
+
+Compile and link the program to an executable 'hello'.  If you installed the
+runtime library and forthrt.o module in /usr/local/lib, and the forthc
+compiler is on your $PATH, the commands are:
+
+    $ forthc hello.ft
+    $ ld -static -m elf_i386 -o hello hello.o \
+        -L/usr/local/lib -lforth /usr/local/lib/forthrt1.o
+
+Run the program:
+
+    $ ./hello
+    Hello from VNPForth
+
+The 'hello' binary will be small.  If you remove debugging information from it
+you can make it smaller still (by default, libforth includes debugging data):
+
+    $ strip ./hello
+
+The features.ft source file in the demos/ subdirectory contains a more
+complete example of VNPForth features:
+
+    $ cp .../demos/features.ft .
+    $ forthc features.ft
+    $ ld -static -m elf_i386 -o features features.o \
+        -L/usr/local/lib -lforth /usr/local/lib/forthrt1.o
+
+
+About VNPForth source
+
+Because VNPForth is not portable the configure script associated with the
+source is minimal, checking only for a handful of programs required to build
+the compiler and runtime.  Your system will need to have a reasonably modern
+C++ compiler installed in order to build the Forth compiler.  The generated
+parser is included in the source, so you will need Flex and Bison only if you
+plan on editing the grammar.  The compiler can be built as either an x86 or
+an x86_64 binary, but will itself build only 32 bit binaries from Forth
+source modules.
+
+VNPForth will not port to other platforms without a considerable amount of
+effort.  It makes direct system calls to the kernel, bypassing libc, and so
+requires a Linux 2.2, 2.4, or later kernel on the system.  The compiler
+generates x86 assembler, and portions of the runtime library are also written
+in x86 assembler, so only Intel-based Linux systems will run VNPForth.
+
+
+Building VNPForth
+
+To build the compiler and Forth runtime libraries, type
+
+    configure
+    make all check
+
+in the directory where you unpacked the source code.  This will build the
+Forth compiler, then use that compiler to build the Forth runtime and test and
+example programs.  It will also run the compiler tests and the ANS Forth test
+suite.  The Forth compiler is built as a static binary to minimize any possible
+problems with VNPForth binary distributions and libc and libstdc++ DLLs.
+
+
+Installing the library, man pages, and programs
+
+Install the programs with
+
+    make install
+
+By default this will install everything under /usr/local.  This will probably
+need superuser privileges.  Specify prefix= to make install to change the
+installation directory.  You do not need install the programs in order to run
+them.
+
+
+Uninstalling VNPForth
+
+Uninstall the programs with
+
+    make uninstall
+
+with the same user/permissions as you used for installing.  To clean out the
+directory for a rebuild, use
+
+    make clean
+
+
+License
+
+VNPForth is distributed under the GNU GPL.  Please see the COPYING file for
+details.
+
+
+Acknowledgments
+
+Thanks to Dirk Zoller (duz@roxi.rz.fht-mannheim.de).  I used his PFE package,
+version 0.9.13, as a reference when I couldn't follow the ANSI standard, and
+borrowed most of the core.ft test suite from PFE too.
+
+Simon Baldwin,
+simon_baldwin@yahoo.com
