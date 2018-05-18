@@ -16,7 +16,7 @@ alight, but a few people might find it to be an interesting diversion. Or
 perhaps just a warning beacon as something *not* to try for themselves.
 
 Anyway, with that said, the following is the README I wrote that describes how
-to buildand how to use this thing. Have fun -- if "fun" is the right word to
+to build and how to use this thing. Have fun -- if "fun" is the right word to
 use here ...
 
 ### Introduction
