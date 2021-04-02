@@ -88,11 +88,8 @@ Program::create_listing (std::ostream & outs) const
 {
   const size_t wordlen = sizeof (void*);
   outs << "VNPForth 1.5 [build "
-       << (wordlen == 8 ? "x86_64" : (wordlen == 4 ? "x86" : "Unknown"));
-
-  std::tm tm;
-  strptime (__DATE__ " " __TIME__, "%b %d %Y %H:%M:%S", &tm);
-  outs << '/' << mktime (&tm) << ']' << std::endl;
+       << (wordlen == 8 ? "x86_64" : (wordlen == 4 ? "x86" : "Unknown"))
+       << '/' << STAMP << ']' << std::endl;
 
   outs << "Source: " << source_path_ << std::endl;
   std::time_t now;

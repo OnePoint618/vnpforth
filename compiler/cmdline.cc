@@ -19,7 +19,6 @@
 //
 
 #include <cstdlib>
-#include <ctime>
 #include <iostream>
 #include <set>
 #include <string>
@@ -210,13 +209,10 @@ CommandLine::version ()
 {
   const size_t wordlen = sizeof (void*);
 
-  std::tm tm;
-  strptime (__DATE__ " " __TIME__, "%b %d %Y %H:%M:%S", &tm);
-
   std::cout << std::endl << "VNPForth 1.5 ["
       << "build "
       << (wordlen == 8 ? "x86_64" : (wordlen == 4 ? "x86" : "unknown"))
-      << '/' << mktime (&tm) << ']' << std::endl
+      << '/' << STAMP << ']' << std::endl
       << "Copyright (C) 2005-2013 Simon Baldwin" << std::endl << std::endl
       << "This program comes with ABSOLUTELY NO WARRANTY; for details"
       << std::endl

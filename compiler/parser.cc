@@ -41,6 +41,9 @@
 #include "symtable.h"
 #include "util.h"
 
+// Stub yywrap() to avoid linking libfl.
+extern "C" int yywrap (void) { return 1; }
+
 // Global declaration of pointer to active parser, linked to by yacc/lex
 // modules, and external declaration of the bits of yacc/lex we call/use.
 Parser * parser_ = 0;

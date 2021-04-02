@@ -20,7 +20,8 @@
 
 include ../Makefile.inc
 
-CXXFLAGS= -D_ISOC99_SOURCE -Wall -Wextra -pedantic $(CXXEXTRA) $(DEBUG)
+STAMP   = -DSTAMP=`date +\"%Y%m%d%H%M%S\"`
+CXXFLAGS= -D_ISOC99_SOURCE -Wall -Wextra -pedantic $(STAMP) $(CXXEXTRA) $(DEBUG)
 LDFLAGS = $(LDEXTRA) $(DEBUG)
 OBJECTS	= cmdline.o data.o dattable.o symbol.o symtable.o \
 	  opcode.o optable.o mangler.o srcfile.o parser.o program.o \
@@ -30,7 +31,7 @@ default: all
 all: forthc
 
 forthc: $(OBJECTS)
-	$(CXX) $(LDFLAGS) -static -o forthc $(OBJECTS) $(LEXLIB)
+	$(CXX) $(LDFLAGS) -static -o forthc $(OBJECTS)
 
 cmdline.o:   cmdline.cc options.h cmdline.h util.h
 codegen.o:   codegen.cc data.h dattable.h opcode.h operand.h register.h \
