@@ -24,6 +24,7 @@ COMPILER_TESTS	= testsuite.ft
 SPLIT_PREFIX	= compile_test_
 REPORT_FILE	= testsuite.log
 TESTER		= tester
+SHELL		= /bin/bash
 
 default: check
 
