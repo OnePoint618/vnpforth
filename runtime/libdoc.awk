@@ -38,7 +38,7 @@ BEGIN {
 }
 
 # Ignore all blank lines in the file
-/^[[:space:]]*$/ {
+/^[ \t]*$/ {
   next
 }
 
@@ -74,12 +74,12 @@ BEGIN {
       if (index ($0, "( ") != 0)
         {
           # Remove the first '( ' and the last ' )' parts.
-          sub (/^[^\(]*\([[:space:]]/, "", $0)
-          sub (/[[:space:]]\)[^\)]*$/, "", $0)
+          sub (/^[^\(]*\([ \t]/, "", $0)
+          sub (/[ \t]\)[^\)]*$/, "", $0)
 
           # Split the remaining string on the ' ) ( ' pattern.
           count = split ($0, doclines, \
-                         /[[:space:]]\)[[:space:]]+\([[:space:]]/ );
+                         /[ \t]\)[ \t]+\([ \t]/ );
 
           # Print out the doclines array, one line per element, up to, but
           # excluding, the last line.  These are the stack effects
@@ -90,11 +90,11 @@ BEGIN {
           # Look for evidence of stack effects documentation on the last
           # documentation element.
           line = doclines[count]
-          if (match (line, /^[^,]*--[^,]*,[[:space:]]*/) > 0)
+          if (match (line, /^[^,]*--[^,]*,[ \t]*/) > 0)
             {
               sline = substr (line, RSTART, RLENGTH)
               line  = substr (line, RLENGTH + 1)
-              sub (/[[:space:]]*,[[:space:]]$/, "", sline)
+              sub (/[ \t]*,[ \t]$/, "", sline)
               printf ("%s %s\n", STACKDOCUMENTATION_TAG, sline)
             }
           printf ("%s %s\n", DOCUMENTATION_TAG, line)

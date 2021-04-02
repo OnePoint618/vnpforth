@@ -123,8 +123,8 @@ $1 == DOCUMENTATION_TAG {
 $1 == END_TAG {
 
   # Massage commentary and forth name, especially to replace /* and */
-  sub (/^[[:space:]]*/, "", commentary)
-  sub (/[[:space:]]*$/, "", commentary)
+  sub (/^[ \t]*/, "", commentary)
+  sub (/[ \t]*$/, "", commentary)
   gsub (/\/\*/, "/ *", commentary)
   gsub (/\*\//, "* /", commentary)
   gsub (/\/\*/, "/ *", forth_name)

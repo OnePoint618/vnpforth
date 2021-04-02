@@ -23,12 +23,12 @@
 # full m4 binary.
 
 # Catch 'include(...)' special lines
-/^[[:space:]]*include\([^\)]*\)[[:space:]]*$/ {
+/^[ \t]*include\([^\)]*\)[ \t]*$/ {
 
   # Find the name of the file being included.
   file = $0
-  sub(/^[[:space:]]*include\(/, "", file)
-  sub(/\)[[:space:]]*$/, "", file)
+  sub(/^[ \t]*include\(/, "", file)
+  sub(/\)[ \t]*$/, "", file)
 
   # Read in each line of the file, and print it out.
   while ((status=getline line <file) > 0)
